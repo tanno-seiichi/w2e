@@ -1,0 +1,61 @@
+﻿<Window x:Class="w2e.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:w2e"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="138" Width="500" MinHeight="138" WindowStartupLocation="CenterScreen"
+        Loaded="WindowLoaded"
+        Closed="WindowClosed">
+    <Grid Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><!-- 0. 読込ファイル選択 -->
+            <RowDefinition Height="5"/><!-- 1. 余白 -->
+            <RowDefinition Height="Auto"/><!-- 2. 操作ボタン -->
+            <RowDefinition Height="5"/><!-- 3. 余白 -->
+            <RowDefinition Height="Auto"/><!-- 4. プログレスバー -->
+            <RowDefinition Height="5"/><!-- 5. 余白 -->
+            <RowDefinition Height="*"/><!-- 6. ログ表示 -->
+        </Grid.RowDefinitions>
+
+        <!-- 0. 読込ファイル選択 -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Label Grid.Column="0" Content="Wordファイルを指定" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+            <TextBox Grid.Column="1" x:Name="m_wordPath" VerticalContentAlignment="Center" BorderThickness="1,1,0,1" TextChanged="WordPathChanged"/>
+            <Button Grid.Column="2" Content="..." Padding="5,0" Click="BtnOpenFileClick"/>
+        </Grid>
+
+        <!-- 1. 余白 -->
+        
+        <!-- 2. 操作ボタン -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" x:Name="m_btnConvert" Content="変換実行" Padding="5" Click="BtnConvertClick" IsEnabled="False"/>
+            <Grid Grid.Column="1" Width="5"/>
+            <Button Grid.Column="2" x:Name="m_btnCancel" Content="処理中断" Padding="5" Click="BtnCancelClick" IsEnabled="False"/>
+        </Grid>
+
+        <!-- 3. 余白 -->
+        
+        <!-- 4. プログレスバー -->
+        <ProgressBar Grid.Row="4" x:Name="m_progressBar" Minimum="0" Maximum="100" Height="25"/>
+
+        <!-- 5. 余白 -->
+        
+        <!-- 6. ログ表示 -->
+        <TextBox Grid.Row="6" x:Name="m_log" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+
+    </Grid>
+</Window>
