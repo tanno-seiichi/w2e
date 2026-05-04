@@ -68,6 +68,22 @@ namespace w2e
                 await Task.Run( () =>
                 {
                     W2EConverter.Convert( wordPath, excelPath, this.m_cts.Token );
+
+                    /* Excelファイルを開く */
+                    try
+                    {
+                        System.Diagnostics.Process.Start(
+                            new System.Diagnostics.ProcessStartInfo()
+                            {
+                                FileName = excelPath,
+                                UseShellExecute = true
+                            } );
+                    }
+                    catch( Exception ex )
+                    {
+                        Console.WriteLine( ex.Message );
+                        UpdateLog( ex.Message );
+                    }
                 } );
             }
             finally
