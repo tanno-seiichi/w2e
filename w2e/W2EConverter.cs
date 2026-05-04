@@ -83,8 +83,8 @@ namespace w2e
                                 int? numId = info.numId;
                                 int? level = info.level;
 
-                                CellData textData = new CellData() { Value = GetVisibleText( para ), HasBorder = false };
-                                CellData numData = new CellData() { Value = "", HasBorder = false };
+                                CellData textData = new CellData() { Value = GetVisibleText( para ) };
+                                CellData numData = new CellData() { Value = "" };
 
                                 if( numId.HasValue &&
                                     numberingMap.ContainsKey( numId.Value ) )
@@ -136,7 +136,7 @@ namespace w2e
                                     List<CellData> values = new List<CellData>();
 
                                     /* 先頭列は章番号に使用するので1列ずらす */
-                                    values.Add( new CellData() { Value = "", HasBorder = false } );
+                                    values.Add( new CellData() { Value = "" } );
 
                                     foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
                                     {
@@ -148,7 +148,7 @@ namespace w2e
                                         bool hasBorder = ( null != borders );
 
                                         /* セルデータをセット */
-                                        values.Add( new CellData() { Value = GetVisibleText( tc ), HasBorder = hasBorder } );
+                                        values.Add( new CellData() { Value = GetVisibleText( tc ), BorderTop = true, BorderBottom = true, BorderLeft = true, BorderRight = true } );
 
                                         /* GridSpan */
                                         Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
@@ -157,7 +157,7 @@ namespace w2e
                                         /* 横結合セル分の空セル追加 */
                                         for( int i = 1; i < span; i++ )
                                         {
-                                            values.Add( new CellData() { Value = "", HasBorder = hasBorder } );
+                                            values.Add( new CellData() { Value = "", BorderTop = true, BorderBottom = true, BorderLeft = true, BorderRight = false } );
                                         }
                                     }
 
@@ -211,12 +211,11 @@ namespace w2e
 
         class CellData
         {
-            public string Value;
-            public bool HasBorder;
-            public bool BorderTop;
-            public bool BorderBottom;
-            public bool BorderLeft;
-            public bool BorderRight;
+            public string Value = "";
+            public bool BorderTop = false;
+            public bool BorderBottom = false;
+            public bool BorderLeft = false;
+            public bool BorderRight = false;
         }
 
         private static WorksheetPart CreateWorksheet( WorkbookPart wbPart, Excel.Sheets sheets, string sheetName, uint sheetId, out Excel.SheetData sheetData )
