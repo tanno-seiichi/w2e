@@ -219,23 +219,23 @@ namespace w2e
             public bool BorderRight = false;
         }
 
-        private static WorksheetPart CreateWorksheet( WorkbookPart wbPart, Excel.Sheets sheets, string sheetName, uint sheetId, out Excel.SheetData sheetData )
+        private static WorksheetPart CreateWorksheet( WorkbookPart a_wbPart, Excel.Sheets a_sheets, string a_sheetName, uint a_sheetId, out Excel.SheetData a_sheetData )
         {
-            WorksheetPart wsPart = wbPart.AddNewPart<WorksheetPart>();
+            WorksheetPart wsPart = a_wbPart.AddNewPart<WorksheetPart>();
 
-            sheetData = new Excel.SheetData();
-            wsPart.Worksheet = new Excel.Worksheet( sheetData );
+            a_sheetData = new Excel.SheetData();
+            wsPart.Worksheet = new Excel.Worksheet( a_sheetData );
 
             Excel.Sheet sheet = new Excel.Sheet();
-            sheet.Id = wbPart.GetIdOfPart( wsPart );
-            sheet.SheetId = sheetId;
-            sheet.Name = sheetName;
+            sheet.Id = a_wbPart.GetIdOfPart( wsPart );
+            sheet.SheetId = a_sheetId;
+            sheet.Name = a_sheetName;
 
-            sheets.Append( sheet );
+            a_sheets.Append( sheet );
             return wsPart;
         }
 
-        private static void CreateStylesheet( WorkbookPart workbookPart )
+        private static void CreateStylesheet( WorkbookPart a_workbookPart )
         {
 
             Excel.Fonts fonts = new Excel.Fonts( new Excel.Font() );
@@ -262,7 +262,7 @@ namespace w2e
             stylesheet.Append( borders );
             stylesheet.Append( cellFormats );
 
-            WorkbookStylesPart stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
+            WorkbookStylesPart stylesPart = a_workbookPart.AddNewPart<WorkbookStylesPart>();
             stylesPart.Stylesheet = stylesheet;
             stylesPart.Stylesheet.Save();
         }
@@ -277,18 +277,18 @@ namespace w2e
             );
         }
 
-        private static void SetRow( Excel.SheetData sheetData, int rowIndex, List<CellData> values )
+        private static void SetRow( Excel.SheetData a_sheetData, int a_rowIndex, List<CellData> a_values )
         {
             Excel.Row row = new Excel.Row();
-            row.RowIndex = (uint)rowIndex;
-            sheetData.Append( row );
+            row.RowIndex = (uint)a_rowIndex;
+            a_sheetData.Append( row );
 
-            for( int i = 0; i < values.Count; i++ )
+            for( int i = 0; i < a_values.Count; i++ )
             {
-                CellData data = values[i];
+                CellData data = a_values[i];
 
                 Excel.Cell cell = new Excel.Cell();
-                cell.CellReference = GetColumnName( i + 1 ) + rowIndex;
+                cell.CellReference = GetColumnName( i + 1 ) + a_rowIndex;
                 cell.DataType = Excel.CellValues.String;
                 cell.CellValue = new Excel.CellValue( data.Value ?? "" );
 
@@ -347,37 +347,37 @@ namespace w2e
             }
         }
 
-        private static string GetColumnName( int index )
+        private static string GetColumnName( int a_index )
         {
             string name = "";
-            while( 0 < index )
+            while( 0 < a_index )
             {
-                index--;
-                name = (char)( 'A' + ( index % 26 ) ) + name;
-                index /= 26;
+                a_index--;
+                name = (char)( 'A' + ( a_index % 26 ) ) + name;
+                a_index /= 26;
             }
             return name;
         }
 
-        static string SafeSheetName( string name )
+        static string SafeSheetName( string a_name )
         {
             /* Excelシート名の禁止文字を半角スペースに置換 */
             char[] invalidid = { '\\', '/', '*', '[', ']', ':', '?', ',', '、', '／' };
             foreach( char c in invalidid )
             {
-                name = name.Replace( c, ' ' );
+                a_name = a_name.Replace( c, ' ' );
             }
 
             /* 全角スペースを除去 */
-            name = name.Replace( "　", "" );
+            a_name = a_name.Replace( "　", "" );
 
             /* Excelシート名の長さ制限チェック */
-            if( 31 < name.Length )
+            if( 31 < a_name.Length )
             {
-                name = name.Substring( 0, 31 );
+                a_name = a_name.Substring( 0, 31 );
             }
 
-            return string.IsNullOrWhiteSpace( name ) ? "Sheet" : name.Trim();
+            return string.IsNullOrWhiteSpace( a_name ) ? "Sheet" : a_name.Trim();
         }
 
         #endregion
@@ -407,17 +407,17 @@ namespace w2e
             /// キー  ： レベル番号（0,1,2,...)
             /// 値    ： そのレベルの現在の番号カウント
             /// </summary>
-            private Dictionary<int, int> counters = new Dictionary<int, int>();
+            private Dictionary<int, int> m_counters = new Dictionary<int, int>();
 
             /// <summary>
             /// 指定された番号定義およびレベルに基づいて現在の段落に対応する番号文字列を生成する
             /// </summary>
-            /// <param name="def">番号定義情報。abstractNum 単位で定義されたレベル別の番号書式 (%1, %2 など) を保持する</param>
-            /// <param name="level">対象となる段落のレベル (0 が最上位</param>
+            /// <param name="a_def">番号定義情報。abstractNum 単位で定義されたレベル別の番号書式 (%1, %2 など) を保持する</param>
+            /// <param name="a_level">対象となる段落のレベル (0 が最上位</param>
             /// <returns>生成された番号文字列 (例： "1.2", "1-3" など)</returns>
-            public string Generate( NumberingDefinition def, int level )
+            public string Generate( NumberingDefinition a_def, int a_level )
             {
-                string result = def.Levels[level].Text ?? "";
+                string result = a_def.Levels[a_level].Text ?? "";
 
                 if( result.Equals( "%1　" ) )
                 {
@@ -437,33 +437,33 @@ namespace w2e
             /// <summary>
             /// %1, %2, %3 を含む文字列を受け取り、階層番号に変換した結果を返す
             /// </summary>
-            /// <param name="pattern"></param>
+            /// <param name="a_pattern"></param>
             /// <returns></returns>
-            public string ConvertChapterNum( string pattern )
+            public string ConvertChapterNum( string a_pattern )
             {
                 /* この行で使われている最大レベルを取得 */
-                int maxLevel = GetMaxLevel( pattern );
+                int maxLevel = GetMaxLevel( a_pattern );
 
                 /* 該当レベルをインクリメント */
-                if( !counters.ContainsKey( maxLevel ) )
+                if( !m_counters.ContainsKey( maxLevel ) )
                 {
-                    counters[maxLevel] = 0;
+                    m_counters[maxLevel] = 0;
                 }
-                counters[maxLevel]++;
+                m_counters[maxLevel]++;
 
                 /* 下位レベルをリセット */
-                List<int> keys = new List<int>( counters.Keys );
+                List<int> keys = new List<int>( m_counters.Keys );
                 foreach( int k in keys )
                 {
                     if( k > maxLevel )
                     {
-                        counters[k] = 0;
+                        m_counters[k] = 0;
                     }
                 }
 
                 /* %n を実際の番号に置き換え */
-                string result = pattern;
-                foreach( KeyValuePair<int, int> kv in counters )
+                string result = a_pattern;
+                foreach( KeyValuePair<int, int> kv in m_counters )
                 {
                     result = result.Replace( "%" + ( kv.Key + 1 ), kv.Value.ToString() );
                 }
@@ -477,12 +477,12 @@ namespace w2e
             /// <summary>
             /// 文字列中に含まれる最大の %n を取得する
             /// </summary>
-            /// <param name="pattern"></param>
+            /// <param name="a_pattern"></param>
             /// <returns></returns>
-            private int GetMaxLevel( string pattern )
+            private int GetMaxLevel( string a_pattern )
             {
                 int max = 0;
-                MatchCollection matches = Regex.Matches( pattern, @"%(\d+)" );
+                MatchCollection matches = Regex.Matches( a_pattern, @"%(\d+)" );
 
                 foreach( Match m in matches )
                 {
@@ -497,9 +497,9 @@ namespace w2e
 
         }
 
-        private static (int? numId, int? level ) GetNumberingInfo( Word.Paragraph pars, StyleDefinitionsPart stylePart )
+        private static (int? numId, int? level ) GetNumberingInfo( Word.Paragraph a_pars, StyleDefinitionsPart a_stylePart )
         {
-            Word.NumberingProperties numPr = pars.ParagraphProperties?.NumberingProperties;
+            Word.NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
             if( null != numPr )
             {
                 return (
@@ -508,10 +508,10 @@ namespace w2e
                 );
             }
 
-            string styleId = pars.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+            string styleId = a_pars.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
             if( null == styleId ) { return ( null, null ); }
 
-            Word.Style style = stylePart?.Styles?.Elements<Word.Style>().FirstOrDefault( s => s.StyleId == styleId );
+            Word.Style style = a_stylePart?.Styles?.Elements<Word.Style>().FirstOrDefault( s => s.StyleId == styleId );
             Word.NumberingProperties styleNumPr = style?.StyleParagraphProperties?.NumberingProperties;
             return (
                 (int?)styleNumPr?.NumberingId?.Val?.Value,
@@ -519,10 +519,10 @@ namespace w2e
             );
         }
 
-        private static Dictionary<int, NumberingDefinition> LoadNumbring( WordprocessingDocument doc )
+        private static Dictionary<int, NumberingDefinition> LoadNumbring( WordprocessingDocument a_doc )
         {
             Dictionary<int, NumberingDefinition> result = new Dictionary<int, NumberingDefinition>();
-            NumberingDefinitionsPart part = doc.MainDocumentPart.NumberingDefinitionsPart;
+            NumberingDefinitionsPart part = a_doc.MainDocumentPart.NumberingDefinitionsPart;
             if( null == part ) { return result; }
    
             Dictionary<int, NumberingDefinition> abstractMap = new Dictionary<int, NumberingDefinition>();
