@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -157,7 +158,7 @@ namespace w2e
                                         /* 横結合セル分の空セル追加 */
                                         for( int i = 1; i < span; i++ )
                                         {
-                                            values.Add( new CellData() { Value = "", BorderTop = true, BorderBottom = true, BorderLeft = true, BorderRight = false } );
+                                            values.Add( new CellData() { Value = "", BorderTop = true, BorderBottom = true, BorderLeft = true, BorderRight = true } );
                                         }
                                     }
 
