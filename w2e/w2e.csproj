@@ -61,7 +61,14 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="W2EConverter.cs" />
+    <Compile Include="excel\CellData.cs" />
+    <Compile Include="excel\ExcelHelper.cs" />
+    <Compile Include="file\FileCopy.cs" />
+    <Compile Include="word\LevelDefinition.cs" />
+    <Compile Include="word\NumberingDefinition.cs" />
+    <Compile Include="word\NumberingEngine.cs" />
+    <Compile Include="converter\W2EConverter.cs" />
+    <Compile Include="word\WordHelper.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
