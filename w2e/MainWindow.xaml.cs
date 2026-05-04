@@ -23,12 +23,19 @@ namespace w2e
 
         private void WindowLoaded( object a_sender, RoutedEventArgs a_args )
         {
+            /* 前回終了時の設定を復元する */
+            this.m_wordPath.Text = Properties.Settings.Default.wordPath;
+
             this.EnableBtnConvert();
         }
 
         private void WindowClosed( object a_sender, EventArgs a_args )
         {
             this.m_cts?.Cancel();
+
+            /* 終了時の設定値を保存する */
+            Properties.Settings.Default.wordPath = this.m_wordPath.Text;
+            Properties.Settings.Default.Save();
         }
 
         private void BtnOpenFileClick( object a_sender, RoutedEventArgs a_args )
