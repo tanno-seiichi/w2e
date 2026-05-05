@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using DocumentFormat.OpenXml.Wordprocessing;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace w2e.word
@@ -19,11 +20,12 @@ namespace w2e.word
         /// <summary>
         /// 指定された番号定義およびレベルに基づいて現在の段落に対応する番号文字列を生成する
         /// </summary>
-        /// <param name="a_def">番号定義情報。abstractNum 単位で定義されたレベル別の番号書式 (%1, %2 など) を保持する</param>
+        /// <param name="a_def">Wordの章番号の番号付け(Numbering)定義情報。abstractNum 単位で定義されたレベル別の番号書式 (%1, %2 など) を保持する</param>
         /// <param name="a_level">対象となる段落のレベル (0 が最上位</param>
         /// <returns>生成された番号文字列 (例： "1.2", "1-3" など)</returns>
         public string Generate( NumberingDefinition a_def, int a_level )
         {
+            /* Wordの"Numbering Level Text"を取得 */
             string result = a_def.Levels[a_level].text ?? "";
 
             if( result.Equals( "%1　" ) )
@@ -43,10 +45,10 @@ namespace w2e.word
 
 
         /// <summary>
-        /// %1, %2, %3 を含む文字列を受け取り、階層番号に変換した結果を返す
+        /// Wordの章番号のレベル別の番号書式 (%1, %2 など)を受け取り、階層番号に変換した結果を返す
         /// </summary>
-        /// <param name="a_pattern"></param>
-        /// <returns></returns>
+        /// <param name="a_pattern">Wordの章番号のレベル別の番号書式 (%1, %2 など)</param>
+        /// <returns>階層番号に変換した文字列</returns>
         public string ConvertChapterNum( string a_pattern )
         {
             /* この行で使われている最大レベルを取得 */
@@ -86,8 +88,8 @@ namespace w2e.word
         /// <summary>
         /// 文字列中に含まれる最大の %n を取得する
         /// </summary>
-        /// <param name="a_pattern"></param>
-        /// <returns></returns>
+        /// <param name="a_pattern">Wordの章番号のレベル別の番号書式 (%1, %2 など)</param>
+        /// <returns>文字列中に含まれる最大の数値</returns>
         private int GetMaxLevel( string a_pattern )
         {
             int max = 0;
