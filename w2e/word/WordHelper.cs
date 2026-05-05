@@ -7,10 +7,25 @@ using System.Text;
 
 namespace w2e.word
 {
+    /// <summary>
+    /// Wordファイルを操作するクラス
+    /// </summary>
     public static class WordHelper
     {
+        /// <summary>
+        /// 指定された段落から章番号の情報を取得する
+        /// </summary>
+        /// <param name="a_pars">段落オブジェクト</param>
+        /// <param name="a_stylePart">スタイル定義パート（段落に直接番号情報が存在しない場合、スタイルから番号情報を取得するために使用する）</param>
+        /// <returns>NumberingIdおよびレベル</returns>
         public static (int? numId, int? level) GetNumberingInfo( Paragraph a_pars, StyleDefinitionsPart a_stylePart )
         {
+            /* 優先順位は以下の通りです：
+             * 1. 段落に直接設定されている番号情報
+             * 2. 段落スタイルに設定されている番号情報
+             * スタイル情報が存在しない場合や、番号情報が未定義の場合は null を返します。
+             */
+
             NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
             if( null != numPr )
             {
@@ -31,8 +46,23 @@ namespace w2e.word
             );
         }
 
+
+        /// <summary>
+        /// Word文書に定義されている番号付け情報（Numbering）を読み込んでNumberingIdをキーとした辞書として取得する
+        /// </summary>
+        /// <param name="a_doc">Wordドキュメント</param>
+        /// <returns>NumberingIdをキーとする番号付け情報の辞書</returns>
         public static Dictionary<int, NumberingDefinition> LoadNumbring( WordprocessingDocument a_doc )
         {
+            /* 処理内容：
+             * ・AbstractNum（抽象番号定義）を読み込み
+             * ・Levelごとの書式（テキスト、フォーマット、開始値）を取得
+             * ・NumberingInstance（実体）と関連付けて最終的なマッピングを構築
+             * 注意：
+             * ・NumberingDefinitionsPartが存在しない場合は空の辞書を返します
+             * ・AbstractNumに存在しない参照は無視されます
+             */
+
             Dictionary<int, NumberingDefinition> result = new Dictionary<int, NumberingDefinition>();
             NumberingDefinitionsPart part = a_doc.MainDocumentPart.NumberingDefinitionsPart;
             if( null == part ) { return result; }
@@ -46,9 +76,9 @@ namespace w2e.word
                 {
                     def.Levels[(int)lvl.LevelIndex.Value] = new LevelDefinition
                     {
-                        Text = null != lvl.LevelText ? lvl.LevelText.Val.Value : "",
-                        Format = null != lvl.NumberingFormat ? lvl.NumberingFormat.Val.Value : (NumberFormatValues?)null,
-                        Start = null != lvl.StartNumberingValue ? lvl.StartNumberingValue.Val.Value : 1
+                        text = null != lvl.LevelText ? lvl.LevelText.Val.Value : "",
+                        format = null != lvl.NumberingFormat ? lvl.NumberingFormat.Val.Value : (NumberFormatValues?)null,
+                        start = null != lvl.StartNumberingValue ? lvl.StartNumberingValue.Val.Value : 1
                     };
                 }
                 abstractMap[(int)abs.AbstractNumberId.Value] = def;
@@ -68,12 +98,25 @@ namespace w2e.word
             return result;
         }
 
+
+        /// <summary>
+        /// OpenXml要素からフィールドコードを考慮してユーザーに表示されるテキストを抽出する
+        /// </summary>
+        /// <param name="a_element">OpenXml要素</param>
+        /// <returns>ユーザーに表示されるテキスト</returns>
         public static string GetVisibleText( OpenXmlElement a_element )
         {
+            /* 以下の処理を行います：
+             * ・フィールド（FieldChar / FieldCode）を解析
+             * ・SEQフィールドおよびSTYLEREFフィールドを識別
+             * ・SEQフィールドの連番表示時に必要な区切り文字（"-"）を補完
+             * 注意点：
+             * ・フィールドコード自体は出力せず、表示結果のみを対象とします
+             * ・複雑なフィールド構造（ネストなど）には完全対応していません
+             */
+
             StringBuilder sb = new StringBuilder();
-
             string currentField = null;
-
             foreach( OpenXmlElement element in a_element.Descendants() )
             {
                 /* フィールド開始・終了 */
@@ -134,6 +177,7 @@ namespace w2e.word
 
             return sb.ToString();
         }
+
 
     }
 }

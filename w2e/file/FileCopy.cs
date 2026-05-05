@@ -2,14 +2,24 @@
 
 namespace w2e.file
 {
+    /// <summary>
+    /// ファイルをコピーするクラス
+    /// </summary>
     public static class FileCopy
     {
-        public static string CreateTempCopy( string a_wordPath )
+        /// <summary>
+        /// ファイルの一時コピーを生成する
+        /// </summary>
+        /// <param name="a_filePath">コピーしたいファイル</param>
+        /// <returns>一時コピーしたファイルのパス</returns>
+        public static string CreateTempCopy( string a_filePath )
         {
-            string dir = System.IO.Path.GetDirectoryName( a_wordPath );
-            string tempPath = System.IO.Path.Combine( dir, System.IO.Path.GetFileNameWithoutExtension( a_wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) + System.IO.Path.GetExtension( a_wordPath ) );
-            System.IO.File.Copy( a_wordPath, tempPath, false );
+            string dir = System.IO.Path.GetDirectoryName( a_filePath );
+            string tempPath = System.IO.Path.Combine( dir, System.IO.Path.GetFileNameWithoutExtension( a_filePath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) + System.IO.Path.GetExtension( a_filePath ) );
+            System.IO.File.Copy( a_filePath, tempPath, false );
             return tempPath;
         }
+
+
     }
 }

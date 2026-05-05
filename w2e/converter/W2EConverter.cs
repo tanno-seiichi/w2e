@@ -13,23 +13,59 @@ using Word = DocumentFormat.OpenXml.Wordprocessing;
 
 namespace w2e.converter
 {
+    /// <summary>
+    /// Wordファイルの内容をExcelファイルに書き出すクラス
+    /// </summary>
     public class W2EConverter
     {
+        /// <summary>
+        /// 開始時の進捗値を表す定数
+        /// </summary>
         private const int PROGRESS_MIN_VALUE = 1;
+
+        /// <summary>
+        /// Word読込完了時の進捗値を表す定数
+        /// </summary>
         private const int PROGRESS_WORD_RANGE = 40;
+
+        /// <summary>
+        /// Excel書出完了時の進捗値を表す定数
+        /// </summary>
         private const int PROGRESS_EXCEL_RANGE = 60;
-        
+
+        /// <summary>
+        /// 進捗情報の処理を委譲するDelegate
+        /// </summary>
+        /// <param name="a_value"></param>
         public delegate void UpdateProgressDelegate( int a_value );
+
+        /// <summary>
+        /// ログ出力処理をを委譲するDelegate
+        /// </summary>
+        /// <param name="a_value"></param>
         public delegate void UpdateLogDelegate( string a_value );
         
+        /// <summary>
+        /// 進捗情報が更新された時の処理
+        /// </summary>
         public static UpdateProgressDelegate onProgressUpdate { get; set; }
 
+        /// <summary>
+        /// ログが出力された時の処理
+        /// </summary>
         public static UpdateLogDelegate onLogUpdate { get; set; }
 
-        public static void Convert( string wordPath, string excelPath, CancellationToken a_token )
+
+        /// <summary>
+        /// Word → Excel の変換処理を実行する
+        /// </summary>
+        /// <param name="a_wordPath">Wordファイルのパス</param>
+        /// <param name="a_excelPath">Excelファイルのパス</param>
+        /// <param name="a_token">処理中断通知</param>
+        public static void Convert( string a_wordPath, string a_excelPath, CancellationToken a_token )
         {
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
-            string tempPath = FileCopy.CreateTempCopy( wordPath );
+            string tempPath = FileCopy.CreateTempCopy( a_wordPath );
 
             try
             {
@@ -43,25 +79,20 @@ namespace w2e.converter
                     NumberingEngine engine = new NumberingEngine();
 
                     /* Excelファイルを生成 */
-                    using( SpreadsheetDocument spreadsheet = SpreadsheetDocument.Create( excelPath, SpreadsheetDocumentType.Workbook ) )
+                    using( SpreadsheetDocument spreadsheet = SpreadsheetDocument.Create( a_excelPath, SpreadsheetDocumentType.Workbook ) )
                     {
                         /* Excelワークブックを生成 */
-                        WorkbookPart workbookPart = spreadsheet.AddWorkbookPart();
-                        workbookPart.Workbook = new Excel.Workbook();
+                        WorkbookPart wbPart = spreadsheet.AddWorkbookPart();
+                        wbPart.Workbook = new Excel.Workbook();
 
-#if BORDER_1
-                        /* Excelの書式設定を生成 */
-                        ExcelHelper.CreateStylesheet( workbookPart );
-#else
                         /* Excelのスタイルシートを初期化 */
-                        ExcelHelper.InitializeStylesheet( workbookPart );
+                        ExcelHelper.InitializeStylesheet( wbPart );
 
                         /* Excelのスタイルシートに登録済のスタイルを再利用するためのキャッシュを生成 */
                         var cache = new Dictionary<string, uint>();
-#endif
 
                         /* Excelワークブックのシートを追加する準備 */
-                        Excel.Sheets sheets = workbookPart.Workbook.AppendChild( new Excel.Sheets() );
+                        Excel.Sheets sheets = wbPart.Workbook.AppendChild( new Excel.Sheets() );
 
                         WorksheetPart wsPart = null;
                         Excel.SheetData sheetData = null;
@@ -93,14 +124,14 @@ namespace w2e.converter
                                 int? numId = info.numId;
                                 int? level = info.level;
 
-                                CellData textData = new CellData() { Value = WordHelper.GetVisibleText( para ) };
-                                CellData numData = new CellData() { Value = "" };
+                                CellData textData = new CellData() { text = WordHelper.GetVisibleText( para ) };
+                                CellData numData = new CellData() { text = "" };
 
                                 if( numId.HasValue &&
                                     numberingMap.ContainsKey( numId.Value ) )
                                 {
                                     int levelValue = level.HasValue ? level.Value : 0;
-                                    numData.Value = engine.Generate( numberingMap[numId.Value], levelValue );
+                                    numData.text = engine.Generate( numberingMap[numId.Value], levelValue );
                                 }
 
                                 /* シートが未登録の場合、または章番号を取得した場合は新規シートを追加する */
@@ -109,26 +140,22 @@ namespace w2e.converter
                                     /* シートが未登録の場合 */
     
                                     /* 先頭シートを追加 */
-                                    wsPart = ExcelHelper.CreateWorksheet( workbookPart, sheets, "トップ", sheetId++, out sheetData );
+                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, "トップ", sheetId++, out sheetData );
                                     /* シートが変わったので行を先頭に戻す */
                                     row = 1;
                                 }
-                                else if( !string.IsNullOrEmpty( numData.Value ) )
+                                else if( !string.IsNullOrEmpty( numData.text ) )
                                 {
                                     /* 章番号を取得した場合 */
     
                                     /* 章番号 章タイトル のシートを追加 */
-                                    wsPart = ExcelHelper.CreateWorksheet( workbookPart, sheets, ExcelHelper.SafeSheetName( numData.Value + " " + textData.Value ), sheetId++, out sheetData );
+                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, ExcelHelper.SafeSheetName( numData.text + " " + textData.text ), sheetId++, out sheetData );
                                     /* シートが変わったので行を先頭に戻す */
                                     row = 1;
                                 }
 
                                 /* 行出力 */
-#if BORDER_1
-                                ExcelHelper.SetRow( sheetData, row++, new List<CellData>() { numData, textData } );
-#else
-                                ExcelHelper.SetRow( workbookPart, sheetData, row++, new List<CellData>() { numData, textData }, cache );
-#endif
+                                ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { numData, textData }, cache );
                                 continue;
                             }
 
@@ -141,16 +168,13 @@ namespace w2e.converter
                                 {
                                     /* シートが未登録の場合 */
 
-                                    wsPart = ExcelHelper.CreateWorksheet( workbookPart, sheets, "トップ", sheetId++, out sheetData );
+                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, "トップ", sheetId++, out sheetData );
                                     /* シートが変わったので行を先頭に戻す */
                                     row = 1;
                                 }
 
-#if BORDER_1
-                                ConvertTable( table, sheetData, ref row );
-#else
-                                ConvertTable( workbookPart, table, sheetData, ref row, cache );
-#endif
+                                ConvertTable( wbPart, table, sheetData, ref row, cache );
+
                                 row++;
                                 continue;
                             }
@@ -185,19 +209,19 @@ namespace w2e.converter
             }
         }
 
-#if BORDER_1
+
         /// <summary>
         /// Word の表を Excel の表形式データへ変換し、指定された SheetData に追記する。
         /// </summary>
-        /// <param name="table">変換元の Word の表</param>
-        /// <param name="sheetData">出力先 Excel シートデータ</param>
-        /// <param name="row">Excel の出力開始行番号（出力後は次の行番号へ更新される）</param>
-        private static void ConvertTable( Word.Table table, SheetData sheetData, ref int row )
+        /// <param name="a_table">変換元の Word の表</param>
+        /// <param name="a_sheetData">出力先 Excel シートデータ</param>
+        /// <param name="a_row">Excel の出力開始行番号（出力後は次の行番号へ更新される）</param>
+        private static void ConvertTable( WorkbookPart a_wbPart, Word.Table a_table, SheetData a_sheetData, ref int a_row, Dictionary<string, uint> a_cache )
         {
             /* -----------------------------------------------------------------
              * Word 表の各行を順番に処理する
              * ----------------------------------------------------------------- */
-            foreach( Word.TableRow tr in table.Elements<Word.TableRow>() )
+            foreach( Word.TableRow tr in a_table.Elements<Word.TableRow>() )
             {
                 /* -------------------------------------------------------------
                  * 1 行分の Excel セルデータを格納するリスト
@@ -209,7 +233,7 @@ namespace w2e.converter
                  * 先頭列は章番号など別用途で使用するため、
                  * Word 表の内容は 1 列右にずらして出力する
                  * ------------------------------------------------------------- */
-                values.Add( new CellData() { Value = "" } );
+                values.Add( new CellData() { text = "" } );
 
                 /* -------------------------------------------------------------
                  * Word 行内の各セルを順番に処理する
@@ -244,23 +268,22 @@ namespace w2e.converter
 
                     /* ---------------------------------------------------------
                      * セルに表示されている文字列を取得して Excel セルへ設定
-                     *
-                     * 現在は Word 側の罫線有無に関係なく、
-                     * すべての辺に罫線ありとして出力している
+                     * 結合セルがある時は枠線（右）は設定しない
                      * --------------------------------------------------------- */
                     values.Add(
                         new CellData()
                         {
-                            Value = WordHelper.GetVisibleText( tc ),
-                            BorderTop = true,
-                            BorderBottom = true,
-                            BorderLeft = true,
-                            BorderRight = ( 0 < span ) ? false : true
+                            text = WordHelper.GetVisibleText( tc ),
+                            topBorder = true,
+                            bottomBorder = true,
+                            leftBorder = true,
+                            rightBorder = ( 1 < span ) ? false : true
                         } );
 
                     /* ---------------------------------------------------------
                      * 横方向に結合されている残りの列数分、
                      * Excel 側で位置合わせ用の空セルを追加する
+                     * 結合セルの末尾まで枠線（右）は設定しない
                      *
                      * 先頭セルはすでに追加済みなので i = 1 から開始
                      * --------------------------------------------------------- */
@@ -269,11 +292,11 @@ namespace w2e.converter
                         values.Add(
                             new CellData()
                             {
-                                Value = "",
-                                BorderTop = true,
-                                BorderBottom = true,
-                                BorderLeft = false,
-                                BorderRight = true
+                                text = "",
+                                topBorder = true,
+                                bottomBorder = true,
+                                leftBorder = false,
+                                rightBorder = ( i == span - 1 ) ? true : false
                             } );
                     }
                 }
@@ -282,109 +305,10 @@ namespace w2e.converter
                  * 1 行分のセルデータを Excel に出力する
                  * 出力後、次の行番号へ進める
                  * ------------------------------------------------------------- */
-                ExcelHelper.SetRow( sheetData, row++, values );
+                ExcelHelper.SetRow( a_wbPart, a_sheetData, a_row++, values, a_cache );
             }
         }
-#else
-        /// <summary>
-        /// Word の表を Excel の表形式データへ変換し、指定された SheetData に追記する。
-        /// </summary>
-        /// <param name="table">変換元の Word の表</param>
-        /// <param name="sheetData">出力先 Excel シートデータ</param>
-        /// <param name="row">Excel の出力開始行番号（出力後は次の行番号へ更新される）</param>
-        private static void ConvertTable( WorkbookPart a_wbPart, Word.Table table, SheetData sheetData, ref int row, Dictionary<string, uint> a_cache )
-        {
-            /* -----------------------------------------------------------------
-             * Word 表の各行を順番に処理する
-             * ----------------------------------------------------------------- */
-            foreach( Word.TableRow tr in table.Elements<Word.TableRow>() )
-            {
-                /* -------------------------------------------------------------
-                 * 1 行分の Excel セルデータを格納するリスト
-                 * この values がそのまま Excel の 1 行になる
-                 * ------------------------------------------------------------- */
-                List<CellData> values = new List<CellData>();
 
-                /* -------------------------------------------------------------
-                 * 先頭列は章番号など別用途で使用するため、
-                 * Word 表の内容は 1 列右にずらして出力する
-                 * ------------------------------------------------------------- */
-                values.Add( new CellData() { Value = "" } );
 
-                /* -------------------------------------------------------------
-                 * Word 行内の各セルを順番に処理する
-                 * ------------------------------------------------------------- */
-                foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
-                {
-                    /* ---------------------------------------------------------
-                     * セルのプロパティを取得
-                     * （結合情報、罫線情報などが含まれる）
-                     * --------------------------------------------------------- */
-                    Word.TableCellProperties props = tc.TableCellProperties;
-
-                    /* ---------------------------------------------------------
-                     * Word セルの罫線情報を取得
-                     * 現状この情報は未使用
-                     * （必要なら Excel 側の罫線反映に利用可能）
-                     * --------------------------------------------------------- */
-                    Word.TableCellBorders borders = props?.GetFirstChild<Word.TableCellBorders>();
-
-                    /* ---------------------------------------------------------
-                     * GridSpan を取得
-                     *
-                     * GridSpan は「このセルが横方向に何列分を占有しているか」
-                     * を表す。
-                     *
-                     * 例:
-                     *   GridSpan = 3 の場合、
-                     *   このセルは Excel 上で 3 列分に相当する。
-                     * --------------------------------------------------------- */
-                    Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
-                    int span = ( null != gridSpan ) ? gridSpan.Val.Value : 1;
-
-                    /* ---------------------------------------------------------
-                     * セルに表示されている文字列を取得して Excel セルへ設定
-                     *
-                     * 現在は Word 側の罫線有無に関係なく、
-                     * すべての辺に罫線ありとして出力している
-                     * --------------------------------------------------------- */
-                    values.Add(
-                        new CellData()
-                        {
-                            Value = WordHelper.GetVisibleText( tc ),
-                            BorderTop = true,
-                            BorderBottom = true,
-                            BorderLeft = true,
-                            BorderRight = ( 1 < span ) ? false : true
-                        } );
-
-                    /* ---------------------------------------------------------
-                     * 横方向に結合されている残りの列数分、
-                     * Excel 側で位置合わせ用の空セルを追加する
-                     *
-                     * 先頭セルはすでに追加済みなので i = 1 から開始
-                     * --------------------------------------------------------- */
-                    for( int i = 1; i < span; i++ )
-                    {
-                        values.Add(
-                            new CellData()
-                            {
-                                Value = "",
-                                BorderTop = true,
-                                BorderBottom = true,
-                                BorderLeft = false,
-                                BorderRight = true
-                            } );
-                    }
-                }
-
-                /* -------------------------------------------------------------
-                 * 1 行分のセルデータを Excel に出力する
-                 * 出力後、次の行番号へ進める
-                 * ------------------------------------------------------------- */
-                ExcelHelper.SetRow( a_wbPart, sheetData, row++, values, a_cache );
-            }
-        }
-#endif
     }
 }

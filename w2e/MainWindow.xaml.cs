@@ -11,27 +11,55 @@ namespace w2e
     /// <summary>
     /// MainWindow.xaml の相互作用ロジック
     /// </summary>
+    /// <remarks>
+    /// WordファイルからExcelファイルへの変換処理のUIを定義したクラス
+    /// </remarks>
     public partial class MainWindow : Window
     {
+        /// <summary>
+        /// 変換処理のキャンセルを制御するためのトークンソース
+        /// </summary>
         private CancellationTokenSource m_cts;
 
+
+        /// <summary>
+        /// コンストラクタ。
+        /// UI初期化およびコンバータのコールバック設定を行います。
+        /// </summary>
         public MainWindow()
         {
+            /* UIを初期化 */
             InitializeComponent();
+
+            /* コールバックを設定 */
             W2EConverter.onProgressUpdate = this.UpdateProgressBar;
             W2EConverter.onLogUpdate = this.UpdateLog;
         }
 
+
+        /// <summary>
+        /// ウィンドウが表示された時の処理
+        /// </summary>
+        /// <remarks>
+        /// 前回終了時の設定値を復元する
+        /// </remarks>
         private void WindowLoaded( object a_sender, RoutedEventArgs a_args )
         {
             /* 前回終了時の設定を復元する */
             this.m_wordPath.Text = Properties.Settings.Default.wordPath;
-
             this.EnableBtnConvert();
         }
 
+
+        /// <summary>
+        /// ウィンドウが閉じられた時の処理
+        /// </summary>
+        /// <remarks>
+        /// 実行中の処理をキャンセルし、設定値を保存する
+        /// </remarks>
         private void WindowClosed( object a_sender, EventArgs a_args )
         {
+            /* 実行中の処理をキャンセル */
             this.m_cts?.Cancel();
 
             /* 終了時の設定値を保存する */
@@ -39,6 +67,13 @@ namespace w2e
             Properties.Settings.Default.Save();
         }
 
+
+        /// <summary>
+        /// 「...」ボタン押下時の処理
+        /// </summary>
+        /// <remarks>
+        /// ファイル選択ダイアログを表示し、選択されたWordファイルのパスを設定する
+        /// </remarks>
         private void BtnOpenFileClick( object a_sender, RoutedEventArgs a_args )
         {
             var openFileDialog = new OpenFileDialog();
@@ -48,11 +83,26 @@ namespace w2e
             }
         }
 
+
+        /// <summary>
+        /// Wordファイルパス変更時の処理
+        /// </summary>
+        /// <remarks>
+        /// ファイルの存在有無に応じて変換ボタンの有効／無効を切り替える
+        /// </remarks>
         private void WordPathChanged( object sender, System.Windows.Controls.TextChangedEventArgs e )
         {
             this.EnableBtnConvert();
         }
 
+
+        /// <summary>
+        /// 「変換実行」ボタン押下時の処理
+        /// </summary>
+        /// <remarks>
+        /// Word→Excel変換を実行する
+        /// 変換完了後、自動的にExcelファイルを既定アプリで開く
+        /// </remarks>
         private async void BtnConvertClick( object a_sender, RoutedEventArgs a_args )
         {
             this.m_btnConvert.IsEnabled = false;
@@ -94,11 +144,25 @@ namespace w2e
             }
         }
 
+
+        /// <summary>
+        /// 「処理中断」ボタン押下時の処理
+        /// </summary>
+        /// <remarks>
+        /// 実行中の変換処理にキャンセル要求を送信する
+        /// </remarks>
         private void BtnCancelClick( object a_sender, RoutedEventArgs a_args )
         {
             this.m_cts?.Cancel();
         }
 
+
+        /// <summary>
+        /// 変換ボタンの有効／無効を制御する
+        /// </summary>
+        /// <remarks>
+        /// 指定されたパスにファイルが存在する場合のみ有効化する
+        /// </remarks>
         private void EnableBtnConvert()
         {
             if( File.Exists( this.m_wordPath.Text ) )
@@ -111,6 +175,14 @@ namespace w2e
             }
         }
 
+
+        /// <summary>
+        /// 進捗バーの値を更新する
+        /// </summary>
+        /// <param name="a_value">進捗値</param>
+        /// <remarks>
+        /// バックグラウンドスレッドからの呼び出しに対応しています
+        /// </remarks>
         private void UpdateProgressBar( int a_value )
         {
             Dispatcher.Invoke( () =>
@@ -119,6 +191,14 @@ namespace w2e
             } );
         }
 
+
+        /// <summary>
+        /// ログ出力を更新する
+        /// </summary>
+        /// <param name="a_value">出力するログメッセージ</param>
+        /// <remarks>
+        /// バックグラウンドスレッドからの呼び出しに対応しています
+        /// </remarks>
         private void UpdateLog( string a_value )
         {
             Dispatcher.Invoke( () =>
@@ -128,6 +208,7 @@ namespace w2e
                 this.m_log.ScrollToEnd();
             } );
         }
+
 
     }
 }

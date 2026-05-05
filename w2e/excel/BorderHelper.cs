@@ -1,13 +1,13 @@
 ﻿using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace w2e.excel
 {
+    /// <summary>
+    /// Excelのセルに枠線を設定するクラス
+    /// </summary>
     public static class BorderHelper
     {
         /// <summary>
@@ -102,6 +102,7 @@ namespace w2e.excel
             /* セルにスタイルを適用 */
             a_cell.StyleIndex = a_cache[key];
         }
+
 
     }
 }

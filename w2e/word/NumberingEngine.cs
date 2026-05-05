@@ -24,7 +24,7 @@ namespace w2e.word
         /// <returns>生成された番号文字列 (例： "1.2", "1-3" など)</returns>
         public string Generate( NumberingDefinition a_def, int a_level )
         {
-            string result = a_def.Levels[a_level].Text ?? "";
+            string result = a_def.Levels[a_level].text ?? "";
 
             if( result.Equals( "%1　" ) )
             {
@@ -40,6 +40,7 @@ namespace w2e.word
                 return "";
             }
         }
+
 
         /// <summary>
         /// %1, %2, %3 を含む文字列を受け取り、階層番号に変換した結果を返す
@@ -81,6 +82,7 @@ namespace w2e.word
             return result.Trim( '-' );
         }
 
+
         /// <summary>
         /// 文字列中に含まれる最大の %n を取得する
         /// </summary>
@@ -101,6 +103,7 @@ namespace w2e.word
             }
             return max;
         }
+
 
     }
 }
