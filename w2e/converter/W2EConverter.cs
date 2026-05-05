@@ -267,15 +267,40 @@ namespace w2e.converter
                     int span = ( null != gridSpan ) ? gridSpan.Val.Value : 1;
 
                     /* ---------------------------------------------------------
+                     * VerticalMerge を取得
+                     *
+                     * VerticalMerge.Val
+                     * ・MergedCellValues.Restart : 縦結合セルの開始セル
+                     * ・MergedCellValues.Continue : 縦結合セルの継続セル
+                     * --------------------------------------------------------- */
+                    Word.VerticalMerge vertical = props?.GetFirstChild<Word.VerticalMerge>();
+                    bool isRestart_flg = false;
+                    bool isContinue_flg = false;
+                    if( null != vertical )
+                    {
+                        if( null == vertical.Val )
+                        {
+                            isContinue_flg = true;
+                        }
+                        else
+                        {
+                            isRestart_flg = Word.MergedCellValues.Restart == vertical.Val;
+                            isContinue_flg = Word.MergedCellValues.Continue == vertical.Val;
+                        }
+                    }
+
+                    /* ---------------------------------------------------------
                      * セルに表示されている文字列を取得して Excel セルへ設定
-                     * 結合セルがある時は枠線（右）は設定しない
+                     * 縦結合セルの開始セルなら枠線（下）は設定しない
+                     * 縦結合セルの結合セルなら枠線（上）は設定しない
+                     * 横結合セルがある時は枠線（右）は設定しない
                      * --------------------------------------------------------- */
                     values.Add(
                         new CellData()
                         {
-                            text = WordHelper.GetVisibleText( tc ),
-                            topBorder = true,
-                            bottomBorder = true,
+                            text = isContinue_flg ? "" : WordHelper.GetVisibleText( tc ),
+                            topBorder = ( null == vertical ) ? true : isRestart_flg,
+                            bottomBorder = ( null == vertical ) ? true : isContinue_flg,
                             leftBorder = true,
                             rightBorder = ( 1 < span ) ? false : true
                         } );
@@ -293,8 +318,8 @@ namespace w2e.converter
                             new CellData()
                             {
                                 text = "",
-                                topBorder = true,
-                                bottomBorder = true,
+                                topBorder = ( null == vertical ) ? true : isRestart_flg,
+                                bottomBorder = ( null == vertical ) ? true : isContinue_flg,
                                 leftBorder = false,
                                 rightBorder = ( i == span - 1 ) ? true : false
                             } );
