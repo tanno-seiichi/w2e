@@ -35,6 +35,8 @@ namespace w2e
             /* コールバックを設定 */
             W2EConverter.onProgressUpdate = this.UpdateProgressBar;
             W2EConverter.onLogUpdate = this.UpdateLog;
+            W2MdConverter.onProgressUpdate = this.UpdateProgressBar;
+            W2MdConverter.onLogUpdate = this.UpdateLog;
         }
 
 
@@ -50,6 +52,8 @@ namespace w2e
         {
             /* 前回終了時の設定を復元する */
             this.m_wordPath.Text = Properties.Settings.Default.wordPath;
+            this.m_markDown.IsChecked = ( this.m_markDown.Content.ToString() == Properties.Settings.Default.output );
+            this.m_excel.IsChecked = !this.m_markDown.IsChecked.Value;
             this.EnableBtnConvert();
         }
 
@@ -69,6 +73,7 @@ namespace w2e
 
             /* 終了時の設定値を保存する */
             Properties.Settings.Default.wordPath = this.m_wordPath.Text;
+            Properties.Settings.Default.output = ( this.m_excel.IsChecked.Value ) ? this.m_excel.Content.ToString() : this.m_markDown.Content.ToString();
             Properties.Settings.Default.Save();
         }
 
@@ -120,24 +125,35 @@ namespace w2e
             this.m_btnCancel.IsEnabled = true;
             this.m_cts = new CancellationTokenSource();
 
+            bool output2Excel_flg = this.m_excel.IsChecked.Value;
             string wordPath = this.m_wordPath.Text;
             string excelPath = Path.Combine(
-                Path.GetDirectoryName( wordPath ), 
-                Path.GetFileNameWithoutExtension( wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) + ".xlsx" );
+                    Path.GetDirectoryName( wordPath ), 
+                    Path.GetFileNameWithoutExtension( wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) + ".xlsx" );
+            string mdDir = Path.Combine(
+                    Path.GetDirectoryName( wordPath), Path.GetFileName( wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) );
 
             try
             {
                 await Task.Run( () =>
                 {
-                    W2EConverter.Convert( wordPath, excelPath, this.m_cts.Token );
+                    if( output2Excel_flg )
+                    {
+                        W2EConverter.Convert( wordPath, excelPath, this.m_cts.Token );
+                    }
+                    else
+                    {
+                        Directory.CreateDirectory( mdDir );
+                        W2MdConverter.Convert( wordPath, mdDir, this.m_cts.Token );
+                    }
 
-                    /* Excelファイルを開く */
+                    /* ExcelファイルまたはMarkDownファイル出力フォルダを開く */
                     try
                     {
                         System.Diagnostics.Process.Start(
                             new System.Diagnostics.ProcessStartInfo()
                             {
-                                FileName = excelPath,
+                                FileName = output2Excel_flg ? excelPath : mdDir,
                                 UseShellExecute = true
                             } );
                     }

@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:w2e"
         mc:Ignorable="d"
-        Title="MainWindow" Height="138" Width="500" MinHeight="138" WindowStartupLocation="CenterScreen"
+        Title="MainWindow" Height="168" Width="500" MinHeight="168" WindowStartupLocation="CenterScreen"
         Loaded="WindowLoaded"
         Closed="WindowClosed">
     <Grid Margin="5">
@@ -36,15 +36,28 @@
         
         <!-- 2. 操作ボタン -->
         <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="8"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="7"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" x:Name="m_btnConvert" Content="変換実行" Padding="5" Click="BtnConvertClick" IsEnabled="False"/>
-            <Grid Grid.Column="1" Width="5"/>
-            <Button Grid.Column="2" x:Name="m_btnCancel" Content="処理中断" Padding="5" Click="BtnCancelClick" IsEnabled="False"/>
+            <Button Grid.Row="0" Grid.Column="0" x:Name="m_btnConvert" Content="変換実行" Padding="5" Click="BtnConvertClick" IsEnabled="False"/>
+            <Grid Grid.Row="0" Grid.Column="1" Width="5"/>
+            <Button Grid.Row="0" Grid.Column="2" x:Name="m_btnCancel" Content="処理中断" Padding="5" Click="BtnCancelClick" IsEnabled="False"/>
+
+            <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
+                <Grid Width="10"/>
+                <RadioButton x:Name="m_excel" GroupName="output" Content="Excel"/>
+                <Grid Width="15"/>
+                <RadioButton x:Name="m_markDown" GroupName="output" Content="MarkDown"/>
+            </StackPanel>
         </Grid>
 
         <!-- 3. 余白 -->

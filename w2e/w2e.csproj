@@ -61,10 +61,12 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="converter\W2MdConverter.cs" />
     <Compile Include="excel\BorderHelper.cs" />
     <Compile Include="excel\CellData.cs" />
     <Compile Include="excel\ExcelHelper.cs" />
     <Compile Include="file\FileCopy.cs" />
+    <Compile Include="markdown\MarkDownWriter.cs" />
     <Compile Include="word\LevelDefinition.cs" />
     <Compile Include="word\NumberingDefinition.cs" />
     <Compile Include="word\NumberingEngine.cs" />
