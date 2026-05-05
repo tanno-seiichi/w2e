@@ -26,10 +26,12 @@ namespace w2e.excel
             a_sheetData = new SheetData();
             wsPart.Worksheet = new Worksheet( a_sheetData );
 
-            Sheet sheet = new Sheet();
-            sheet.Id = a_wbPart.GetIdOfPart( wsPart );
-            sheet.SheetId = a_sheetId;
-            sheet.Name = a_sheetName;
+            Sheet sheet = new Sheet()
+            {
+                Id = a_wbPart.GetIdOfPart( wsPart ),
+                SheetId = a_sheetId,
+                Name = a_sheetName
+            };
 
             a_sheets.Append( sheet );
             return wsPart;
