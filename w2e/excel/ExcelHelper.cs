@@ -1,6 +1,7 @@
 ﻿using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace w2e.excel
 {
@@ -22,6 +23,77 @@ namespace w2e.excel
             return wsPart;
         }
 
+        /// <summary>
+        /// WorkbookStylesPart と Stylesheet を安全に初期化する。
+        /// Excelが要求する最小構造（Fonts/Fills/Borders/CellFormats）を必ず1件以上持たせる。
+        /// </summary>
+        /// <param name="a_wbPart">WorkbookPart</param>
+        public static void InitializeStylesheet( WorkbookPart a_wbPart )
+        {
+            /* WorkbookStylesPart取得（無ければ作成） */
+            WorkbookStylesPart stylesPart = a_wbPart.WorkbookStylesPart;
+            if( null == stylesPart )
+            {
+                stylesPart = a_wbPart.AddNewPart<WorkbookStylesPart>();
+                stylesPart.Stylesheet = new Stylesheet();
+            }
+
+            /* Stylesheet取得（無ければ生成） */
+            Stylesheet styles = stylesPart.Stylesheet;
+            if( null == styles )
+            {
+                styles = new Stylesheet();
+                stylesPart.Stylesheet = styles;
+            }
+
+            /* Fonts初期化（最低1件必要） */
+            if( null == styles.Fonts )
+            {
+                styles.Fonts = new Fonts( new Font() );
+            }
+            else if( styles.Fonts.Count() == 0 )
+            {
+                styles.Fonts.AppendChild( new Font() );
+            }
+
+            /* Fills初期化（最低1件必要） */
+            if( null == styles.Fills )
+            {
+                styles.Fills = new Fills( new Fill() );
+            }
+            else if( styles.Fills.Count() == 0 )
+            {
+                styles.Fills.AppendChild( new Fill() );
+            }
+
+            /* Borders初期化（最低1件必要） */
+            if( null == styles.Borders )
+            {
+                styles.Borders = new Borders( new Border() );
+            }
+            else if( styles.Borders.Count() == 0 )
+            {
+                styles.Borders.AppendChild( new Border() );
+            }
+
+            /* CellFormats初期化（最低1件必要） */
+            if( null == styles.CellFormats )
+            {
+                styles.CellFormats = new CellFormats( new CellFormat() );
+            }
+            else if( styles.CellFormats.Count() == 0 )
+            {
+                styles.CellFormats.AppendChild( new CellFormat() );
+            }
+
+            /* Count属性を整合させる */
+            styles.Fonts.Count = (uint)styles.Fonts.Count();
+            styles.Fills.Count = (uint)styles.Fills.Count();
+            styles.Borders.Count = (uint)styles.Borders.Count();
+            styles.CellFormats.Count = (uint)styles.CellFormats.Count();
+        }
+
+#if BORDER_1
         public static void CreateStylesheet( WorkbookPart a_workbookPart )
         {
 
@@ -54,7 +126,7 @@ namespace w2e.excel
             stylesPart.Stylesheet.Save();
         }
 
-        public static Border CreateBorder( bool a_TopBorder_flg, bool a_BottomBorder_flg, bool a_LeftBorder_flg, bool a_RightBorder_flg )
+        private static Border CreateBorder( bool a_TopBorder_flg, bool a_BottomBorder_flg, bool a_LeftBorder_flg, bool a_RightBorder_flg )
         {
             return new Border(
                 a_LeftBorder_flg ? new LeftBorder() { Style = BorderStyleValues.Thin } : new LeftBorder(),
@@ -133,8 +205,31 @@ namespace w2e.excel
                 row.Append( cell );
             }
         }
+#else
+        public static void SetRow( WorkbookPart a_wbPart, SheetData a_sheetData, int a_rowIndex, List<CellData> a_values, Dictionary<string, uint> a_cache )
+        {
+            Row row = new Row();
+            row.RowIndex = (uint)a_rowIndex;
+            a_sheetData.Append( row );
 
-        public static string GetColumnName( int a_index )
+            for( int i = 0; i < a_values.Count; i++ )
+            {
+                CellData data = a_values[i];
+
+                Cell cell = new Cell();
+                cell.CellReference = GetColumnName( i + 1 ) + a_rowIndex;
+                cell.DataType = CellValues.String;
+                cell.CellValue = new CellValue( data.Value ?? "" );
+
+                BorderHelper.ApplyBorderWithCache( a_wbPart, cell, data.BorderTop, data.BorderBottom, data.BorderLeft, data.BorderRight, a_cache );
+
+                row.Append( cell );
+            }
+        }
+#endif
+
+
+        private static string GetColumnName( int a_index )
         {
             string name = "";
             while( 0 < a_index )

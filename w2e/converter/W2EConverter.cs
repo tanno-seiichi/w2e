@@ -49,8 +49,16 @@ namespace w2e.converter
                         WorkbookPart workbookPart = spreadsheet.AddWorkbookPart();
                         workbookPart.Workbook = new Excel.Workbook();
 
+#if BORDER_1
                         /* Excelの書式設定を生成 */
                         ExcelHelper.CreateStylesheet( workbookPart );
+#else
+                        /* Excelのスタイルシートを初期化 */
+                        ExcelHelper.InitializeStylesheet( workbookPart );
+
+                        /* Excelのスタイルシートに登録済のスタイルを再利用するためのキャッシュを生成 */
+                        var cache = new Dictionary<string, uint>();
+#endif
 
                         /* Excelワークブックのシートを追加する準備 */
                         Excel.Sheets sheets = workbookPart.Workbook.AppendChild( new Excel.Sheets() );
@@ -116,8 +124,11 @@ namespace w2e.converter
                                 }
 
                                 /* 行出力 */
+#if BORDER_1
                                 ExcelHelper.SetRow( sheetData, row++, new List<CellData>() { numData, textData } );
-
+#else
+                                ExcelHelper.SetRow( workbookPart, sheetData, row++, new List<CellData>() { numData, textData }, cache );
+#endif
                                 continue;
                             }
 
@@ -135,7 +146,11 @@ namespace w2e.converter
                                     row = 1;
                                 }
 
+#if BORDER_1
                                 ConvertTable( table, sheetData, ref row );
+#else
+                                ConvertTable( workbookPart, table, sheetData, ref row, cache );
+#endif
                                 row++;
                                 continue;
                             }
@@ -170,6 +185,7 @@ namespace w2e.converter
             }
         }
 
+#if BORDER_1
         /// <summary>
         /// Word の表を Excel の表形式データへ変換し、指定された SheetData に追記する。
         /// </summary>
@@ -214,6 +230,19 @@ namespace w2e.converter
                     Word.TableCellBorders borders = props?.GetFirstChild<Word.TableCellBorders>();
 
                     /* ---------------------------------------------------------
+                     * GridSpan を取得
+                     *
+                     * GridSpan は「このセルが横方向に何列分を占有しているか」
+                     * を表す。
+                     *
+                     * 例:
+                     *   GridSpan = 3 の場合、
+                     *   このセルは Excel 上で 3 列分に相当する。
+                     * --------------------------------------------------------- */
+                    Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
+                    int span = ( null != gridSpan ) ? gridSpan.Val.Value : 1;
+
+                    /* ---------------------------------------------------------
                      * セルに表示されている文字列を取得して Excel セルへ設定
                      *
                      * 現在は Word 側の罫線有無に関係なく、
@@ -226,21 +255,8 @@ namespace w2e.converter
                             BorderTop = true,
                             BorderBottom = true,
                             BorderLeft = true,
-                            BorderRight = true
+                            BorderRight = ( 0 < span ) ? false : true
                         } );
-
-                    /* ---------------------------------------------------------
-                     * GridSpan を取得
-                     *
-                     * GridSpan は「このセルが横方向に何列分を占有しているか」
-                     * を表す。
-                     *
-                     * 例:
-                     *   GridSpan = 3 の場合、
-                     *   このセルは Excel 上で 3 列分に相当する。
-                     * --------------------------------------------------------- */
-                    Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
-                    int span = ( null != gridSpan ) ? gridSpan.Val.Value : 1;
 
                     /* ---------------------------------------------------------
                      * 横方向に結合されている残りの列数分、
@@ -256,7 +272,7 @@ namespace w2e.converter
                                 Value = "",
                                 BorderTop = true,
                                 BorderBottom = true,
-                                BorderLeft = true,
+                                BorderLeft = false,
                                 BorderRight = true
                             } );
                     }
@@ -269,6 +285,106 @@ namespace w2e.converter
                 ExcelHelper.SetRow( sheetData, row++, values );
             }
         }
+#else
+        /// <summary>
+        /// Word の表を Excel の表形式データへ変換し、指定された SheetData に追記する。
+        /// </summary>
+        /// <param name="table">変換元の Word の表</param>
+        /// <param name="sheetData">出力先 Excel シートデータ</param>
+        /// <param name="row">Excel の出力開始行番号（出力後は次の行番号へ更新される）</param>
+        private static void ConvertTable( WorkbookPart a_wbPart, Word.Table table, SheetData sheetData, ref int row, Dictionary<string, uint> a_cache )
+        {
+            /* -----------------------------------------------------------------
+             * Word 表の各行を順番に処理する
+             * ----------------------------------------------------------------- */
+            foreach( Word.TableRow tr in table.Elements<Word.TableRow>() )
+            {
+                /* -------------------------------------------------------------
+                 * 1 行分の Excel セルデータを格納するリスト
+                 * この values がそのまま Excel の 1 行になる
+                 * ------------------------------------------------------------- */
+                List<CellData> values = new List<CellData>();
 
+                /* -------------------------------------------------------------
+                 * 先頭列は章番号など別用途で使用するため、
+                 * Word 表の内容は 1 列右にずらして出力する
+                 * ------------------------------------------------------------- */
+                values.Add( new CellData() { Value = "" } );
+
+                /* -------------------------------------------------------------
+                 * Word 行内の各セルを順番に処理する
+                 * ------------------------------------------------------------- */
+                foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
+                {
+                    /* ---------------------------------------------------------
+                     * セルのプロパティを取得
+                     * （結合情報、罫線情報などが含まれる）
+                     * --------------------------------------------------------- */
+                    Word.TableCellProperties props = tc.TableCellProperties;
+
+                    /* ---------------------------------------------------------
+                     * Word セルの罫線情報を取得
+                     * 現状この情報は未使用
+                     * （必要なら Excel 側の罫線反映に利用可能）
+                     * --------------------------------------------------------- */
+                    Word.TableCellBorders borders = props?.GetFirstChild<Word.TableCellBorders>();
+
+                    /* ---------------------------------------------------------
+                     * GridSpan を取得
+                     *
+                     * GridSpan は「このセルが横方向に何列分を占有しているか」
+                     * を表す。
+                     *
+                     * 例:
+                     *   GridSpan = 3 の場合、
+                     *   このセルは Excel 上で 3 列分に相当する。
+                     * --------------------------------------------------------- */
+                    Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
+                    int span = ( null != gridSpan ) ? gridSpan.Val.Value : 1;
+
+                    /* ---------------------------------------------------------
+                     * セルに表示されている文字列を取得して Excel セルへ設定
+                     *
+                     * 現在は Word 側の罫線有無に関係なく、
+                     * すべての辺に罫線ありとして出力している
+                     * --------------------------------------------------------- */
+                    values.Add(
+                        new CellData()
+                        {
+                            Value = WordHelper.GetVisibleText( tc ),
+                            BorderTop = true,
+                            BorderBottom = true,
+                            BorderLeft = true,
+                            BorderRight = ( 1 < span ) ? false : true
+                        } );
+
+                    /* ---------------------------------------------------------
+                     * 横方向に結合されている残りの列数分、
+                     * Excel 側で位置合わせ用の空セルを追加する
+                     *
+                     * 先頭セルはすでに追加済みなので i = 1 から開始
+                     * --------------------------------------------------------- */
+                    for( int i = 1; i < span; i++ )
+                    {
+                        values.Add(
+                            new CellData()
+                            {
+                                Value = "",
+                                BorderTop = true,
+                                BorderBottom = true,
+                                BorderLeft = false,
+                                BorderRight = true
+                            } );
+                    }
+                }
+
+                /* -------------------------------------------------------------
+                 * 1 行分のセルデータを Excel に出力する
+                 * 出力後、次の行番号へ進める
+                 * ------------------------------------------------------------- */
+                ExcelHelper.SetRow( a_wbPart, sheetData, row++, values, a_cache );
+            }
+        }
+#endif
     }
 }
