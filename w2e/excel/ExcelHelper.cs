@@ -172,8 +172,20 @@ namespace w2e.excel
 
                 Cell cell = new Cell();
                 cell.CellReference = GetColumnName( i + 1 ) + a_rowIndex;
-                cell.DataType = CellValues.String;
-                cell.CellValue = new CellValue( data.text ?? "" );
+
+                /* セルに値を設定 */
+                if( string.IsNullOrEmpty( data.text ) )
+                {
+                    /* セルがブランクの場合 */
+                    cell.DataType = null;
+                    cell.CellValue = null;
+                }
+                else
+                {
+                    /* セルがブランクでない場合 */
+                    cell.DataType = CellValues.String;
+                    cell.CellValue = new CellValue( data.text ?? "" );
+                }
 
                 BorderHelper.ApplyBorderWithCache( a_wbPart, cell, data.topBorder, data.bottomBorder, data.leftBorder, data.rightBorder, a_cache );
 
