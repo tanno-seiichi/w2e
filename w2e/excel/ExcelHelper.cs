@@ -13,12 +13,12 @@ namespace w2e.excel
         /// <summary>
         /// Excelのワークシートを生成する
         /// </summary>
-        /// <param name="a_wbPart"></param>
-        /// <param name="a_sheets"></param>
-        /// <param name="a_sheetName"></param>
-        /// <param name="a_sheetId"></param>
-        /// <param name="a_sheetData"></param>
-        /// <returns></returns>
+        /// <param name="a_wbPart">ワークシートの追加先となるブック</param>
+        /// <param name="a_sheets">ブック内のシートコレクション</param>
+        /// <param name="a_sheetName">作成するワークシートの名前</param>
+        /// <param name="a_sheetId">ワークシートに割り当てるID（ブック内で一意である必要がある）</param>
+        /// <param name="a_sheetData">ワークシートの内容</param>
+        /// <returns> Excelワークシート</returns>
         public static WorksheetPart CreateWorksheet( WorkbookPart a_wbPart, Sheets a_sheets, string a_sheetName, uint a_sheetId, out SheetData a_sheetData )
         {
             WorksheetPart wsPart = a_wbPart.AddNewPart<WorksheetPart>();
@@ -67,7 +67,7 @@ namespace w2e.excel
         /// WorkbookStylesPart と Stylesheet を安全に初期化する。
         /// Excelが要求する最小構造（Fonts/Fills/Borders/CellFormats）を必ず1件以上持たせる。
         /// </summary>
-        /// <param name="a_wbPart">WorkbookPart</param>
+        /// <param name="a_wbPart">WorkbookPart（スタイル情報のルート）</param>
         public static void InitializeStylesheet( WorkbookPart a_wbPart )
         {
             /* WorkbookStylesPart取得（無ければ作成） */
@@ -137,15 +137,24 @@ namespace w2e.excel
         /// <summary>
         /// Excelの列名を取得する
         /// </summary>
-        /// <param name="a_index"></param>
-        /// <returns></returns>
+        /// <param name="a_index">列インデックス（例：1 = A、26 = Z、27 = AA）</param>
+        /// <returns>Excel形式の列名文字列</returns>
         private static string GetColumnName( int a_index )
         {
-            string name = "";
+            /* 前提：Excelは 26進数、ただし0がない（A=1） */
+
+            string name = "";   // 生成する列名
+
+            /* インデックスを26進数（A-Z）として扱い、右側の桁から順に算出する */
             while( 0 < a_index )
             {
+                /* 0始まりに補正（A=0として扱うため） */
                 a_index--;
+
+                /* 現在の桁の文字を算出して先頭に追加 */
                 name = (char)( 'A' + ( a_index % 26 ) ) + name;
+
+                /* 次の桁へ */
                 a_index /= 26;
             }
             return name;
@@ -155,11 +164,11 @@ namespace w2e.excel
         /// <summary>
         /// Excelの行を追加する
         /// </summary>
-        /// <param name="a_wbPart"></param>
-        /// <param name="a_sheetData"></param>
-        /// <param name="a_rowIndex"></param>
-        /// <param name="a_values"></param>
-        /// <param name="a_cache"></param>
+        /// <param name="a_wbPart">WorkbookPart（スタイル情報のルート）</param>
+        /// <param name="a_sheetData">Excelワークシート</param>
+        /// <param name="a_rowIndex">行番号</param>
+        /// <param name="a_values">行に設定するセルデータの一覧</param>
+        /// <param name="a_cache">Excelのスタイルシートに登録済のスタイルを再利用するためのキャッシュ</param>
         public static void SetRow( WorkbookPart a_wbPart, SheetData a_sheetData, int a_rowIndex, List<CellData> a_values, Dictionary<string, uint> a_cache )
         {
             Row row = new Row();
