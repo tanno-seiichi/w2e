@@ -21,7 +21,7 @@ namespace w2e.excel
         /// <param name="a_left_flg">左罫線を引くかどうか</param>
         /// <param name="a_right_flg">右罫線を引くかどうか</param>
         /// <param name="a_cache">スタイルキャッシュ（キー：罫線条件、値：StyleIndex）</param>
-        public static void ApplyBorderWithCache( WorkbookPart a_wbPart, Cell a_cell, 
+        public static void ApplyBorder( WorkbookPart a_wbPart, Cell a_cell, 
                                                  bool a_top_flg, bool a_bottom_flg, bool a_left_flg, bool a_right_flg, 
                                                  Dictionary<string, uint> a_cache )
         {
@@ -87,6 +87,13 @@ namespace w2e.excel
                 newFormat.Alignment = ( null != baseFormat.Alignment ) ? ( Alignment)baseFormat.Alignment.CloneNode( true ) : newFormat.Alignment;  /* 配置 */
                 newFormat.BorderId = newBorderId;                                                                                                   /* 罫線 */
                 newFormat.ApplyBorder = true;                                                                                                       /* 罫線適用フラグをON */
+
+                /* 枠線が設定されたセルの書式「折り返して全体を表示する」と「上詰め」を有効にする */
+                if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg )
+                {
+                    newFormat.Alignment = new Alignment() { WrapText = true, Vertical = VerticalAlignmentValues.Top };
+                    newFormat.ApplyAlignment = true;
+                }
 
                 /* CellFormatsコレクションに追加 */
                 /* 新しいスタイルのインデックスを取得 */

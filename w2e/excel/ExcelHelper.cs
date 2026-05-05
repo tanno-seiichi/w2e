@@ -196,7 +196,7 @@ namespace w2e.excel
                     cell.CellValue = new CellValue( data.text ?? "" );
                 }
 
-                BorderHelper.ApplyBorderWithCache( a_wbPart, cell, data.topBorder, data.bottomBorder, data.leftBorder, data.rightBorder, a_cache );
+                BorderHelper.ApplyBorder( a_wbPart, cell, data.topBorder, data.bottomBorder, data.leftBorder, data.rightBorder, a_cache );
 
                 row.Append( cell );
             }
