@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using w2e.converter;
 
 namespace w2e
@@ -43,6 +44,8 @@ namespace w2e
         /// <remarks>
         /// 前回終了時の設定値を復元する
         /// </remarks>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
         private void WindowLoaded( object a_sender, RoutedEventArgs a_args )
         {
             /* 前回終了時の設定を復元する */
@@ -57,6 +60,8 @@ namespace w2e
         /// <remarks>
         /// 実行中の処理をキャンセルし、設定値を保存する
         /// </remarks>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
         private void WindowClosed( object a_sender, EventArgs a_args )
         {
             /* 実行中の処理をキャンセル */
@@ -74,6 +79,8 @@ namespace w2e
         /// <remarks>
         /// ファイル選択ダイアログを表示し、選択されたWordファイルのパスを設定する
         /// </remarks>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
         private void BtnOpenFileClick( object a_sender, RoutedEventArgs a_args )
         {
             var openFileDialog = new OpenFileDialog();
@@ -90,7 +97,9 @@ namespace w2e
         /// <remarks>
         /// ファイルの存在有無に応じて変換ボタンの有効／無効を切り替える
         /// </remarks>
-        private void WordPathChanged( object sender, System.Windows.Controls.TextChangedEventArgs e )
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
+        private void WordPathChanged( object sender, TextChangedEventArgs a_args )
         {
             this.EnableBtnConvert();
         }
@@ -103,6 +112,8 @@ namespace w2e
         /// Word→Excel変換を実行する
         /// 変換完了後、自動的にExcelファイルを既定アプリで開く
         /// </remarks>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
         private async void BtnConvertClick( object a_sender, RoutedEventArgs a_args )
         {
             this.m_btnConvert.IsEnabled = false;
@@ -151,6 +162,8 @@ namespace w2e
         /// <remarks>
         /// 実行中の変換処理にキャンセル要求を送信する
         /// </remarks>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
         private void BtnCancelClick( object a_sender, RoutedEventArgs a_args )
         {
             this.m_cts?.Cancel();
@@ -179,10 +192,10 @@ namespace w2e
         /// <summary>
         /// 進捗バーの値を更新する
         /// </summary>
-        /// <param name="a_value">進捗値</param>
         /// <remarks>
         /// バックグラウンドスレッドからの呼び出しに対応しています
         /// </remarks>
+        /// <param name="a_value">進捗値</param>
         private void UpdateProgressBar( int a_value )
         {
             Dispatcher.Invoke( () =>
@@ -195,10 +208,10 @@ namespace w2e
         /// <summary>
         /// ログ出力を更新する
         /// </summary>
-        /// <param name="a_value">出力するログメッセージ</param>
         /// <remarks>
         /// バックグラウンドスレッドからの呼び出しに対応しています
         /// </remarks>
+        /// <param name="a_value">出力するログメッセージ</param>
         private void UpdateLog( string a_value )
         {
             Dispatcher.Invoke( () =>
