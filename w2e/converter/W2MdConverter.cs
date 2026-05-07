@@ -112,7 +112,9 @@ namespace w2e.converter
                             string text = WordHelper.GetVisibleText(para);
                             string num = "";
 
-                            if( numId.HasValue &&
+                            /* 有効な番号付情報と章タイトルの組合せを検出したら章番号を設定する */
+                            if( !string.IsNullOrEmpty( text ) &&
+                                numId.HasValue &&
                                 numberingMap.ContainsKey( numId.Value ) )
                             {
                                 int levelValue = level ?? 0;

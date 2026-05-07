@@ -127,7 +127,9 @@ namespace w2e.converter
                                 CellData textData = new CellData() { text = WordHelper.GetVisibleText( para ) };
                                 CellData numData = new CellData() { text = "" };
 
-                                if( numId.HasValue &&
+                                /* 有効な番号付情報と章タイトルの組合せを検出したら章番号を設定する */
+                                if( !string.IsNullOrEmpty( textData.text ) &&
+                                    numId.HasValue &&
                                     numberingMap.ContainsKey( numId.Value ) )
                                 {
                                     int levelValue = level.HasValue ? level.Value : 0;
