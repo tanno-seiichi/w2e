@@ -235,10 +235,17 @@ namespace w2e.converter
         private static void ConvertTable( WorkbookPart a_wbPart, Word.Table a_table, SheetData a_sheetData, ref int a_row, Dictionary<string, uint> a_cache )
         {
             /* -----------------------------------------------------------------
+             * Word 表の全行を List にして index で参照できるようにする
+             * ----------------------------------------------------------------- */
+            List<Word.TableRow> rows = a_table.Elements<Word.TableRow>().ToList();
+
+            /* -----------------------------------------------------------------
              * Word 表の各行を順番に処理する
              * ----------------------------------------------------------------- */
-            foreach( Word.TableRow tr in a_table.Elements<Word.TableRow>() )
+            for( int rowIndex = 0; rowIndex < rows.Count; rowIndex++ )
             {
+                Word.TableRow tr = rows[rowIndex];
+
                 /* -------------------------------------------------------------
                  * 1 行分の Excel セルデータを格納するリスト
                  * この values がそのまま Excel の 1 行になる
@@ -252,10 +259,17 @@ namespace w2e.converter
                 values.Add( new CellData() { text = "" } );
 
                 /* -------------------------------------------------------------
+                 * この行のセル一覧を取得（列 index 用）
+                 * ------------------------------------------------------------- */
+                List<Word.TableCell> cells = tr.Elements<Word.TableCell>().ToList();
+
+                /* -------------------------------------------------------------
                  * Word 行内の各セルを順番に処理する
                  * ------------------------------------------------------------- */
-                foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
+                for( int colIndex = 0; colIndex < cells.Count; colIndex++ )
                 {
+                    Word.TableCell tc = cells[colIndex];
+
                     /* ---------------------------------------------------------
                      * セルのプロパティを取得
                      * （結合情報、罫線情報などが含まれる）
@@ -263,21 +277,7 @@ namespace w2e.converter
                     Word.TableCellProperties props = tc.TableCellProperties;
 
                     /* ---------------------------------------------------------
-                     * Word セルの罫線情報を取得
-                     * 現状この情報は未使用
-                     * （必要なら Excel 側の罫線反映に利用可能）
-                     * --------------------------------------------------------- */
-                    Word.TableCellBorders borders = props?.GetFirstChild<Word.TableCellBorders>();
-
-                    /* ---------------------------------------------------------
-                     * GridSpan を取得
-                     *
-                     * GridSpan は「このセルが横方向に何列分を占有しているか」
-                     * を表す。
-                     *
-                     * 例:
-                     *   GridSpan = 3 の場合、
-                     *   このセルは Excel 上で 3 列分に相当する。
+                     * GridSpan（横結合の列数）を取得
                      * --------------------------------------------------------- */
                     Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
                     int span = ( null != gridSpan ) ? gridSpan.Val.Value : 1;
@@ -296,27 +296,55 @@ namespace w2e.converter
                     {
                         if( null == vertical.Val )
                         {
+                            /* 結合セル */
                             isContinue_flg = true;
                         }
                         else
                         {
-                            isRestart_flg = Word.MergedCellValues.Restart == vertical.Val;
-                            isContinue_flg = Word.MergedCellValues.Continue == vertical.Val;
+                            if( Word.MergedCellValues.Restart == vertical.Val.Value )
+                            {
+                                /* 開始セル */
+                                isRestart_flg = true;
+                            }
                         }
                     }
 
                     /* ---------------------------------------------------------
-                     * セルに表示されている文字列を取得して Excel セルへ設定
-                     * 縦結合セルの開始セルなら枠線（下）は設定しない
-                     * 縦結合セルの結合セルなら枠線（上）は設定しない
-                     * 横結合セルがある時は枠線（右）は設定しない
+                     * 次の行の同じ列のセルで縦結合が継続しているか判定
+                     * --------------------------------------------------------- */
+                    bool hasNextVerticalMerge_flg = false;
+
+                    if( isContinue_flg &&
+                        rowIndex + 1 < rows.Count )
+                    {
+                        Word.TableRow nextRow = rows[rowIndex + 1];
+                        List<Word.TableCell> nextCells = nextRow.Elements<Word.TableCell>().ToList();
+
+                        if( colIndex < nextCells.Count )
+                        {
+                            var nextVmerge = nextCells[colIndex].TableCellProperties?.GetFirstChild<Word.VerticalMerge>();
+                            hasNextVerticalMerge_flg = ( null != nextVmerge );
+                        }
+                    }
+
+                    /* ---------------------------------------------------------
+                     * 枠線（下）判定
+                     * ・非縦結合            ： あり
+                     * ・Restart             ： なし
+                     * ・Continue + 次もあり ： なし（縦結合セルの中間）
+                     * ・Continue + 次はなし ： あり（縦結合セルの末尾）
+                     * --------------------------------------------------------- */
+                    bool bottomBorder_flg = ( null == vertical ) ? true : ( isContinue_flg ? !hasNextVerticalMerge_flg : false );
+
+                    /* ---------------------------------------------------------
+                     * セルデータを追加（先頭セル）
                      * --------------------------------------------------------- */
                     values.Add(
                         new CellData()
                         {
                             text = isContinue_flg ? "" : WordHelper.GetCellText( tc ),
                             topBorder = ( null == vertical ) ? true : isRestart_flg,
-                            bottomBorder = ( null == vertical ) ? true : isContinue_flg,
+                            bottomBorder = bottomBorder_flg,
                             leftBorder = true,
                             rightBorder = ( 1 < span ) ? false : true
                         } );
@@ -335,7 +363,7 @@ namespace w2e.converter
                             {
                                 text = "",
                                 topBorder = ( null == vertical ) ? true : isRestart_flg,
-                                bottomBorder = ( null == vertical ) ? true : isContinue_flg,
+                                bottomBorder = bottomBorder_flg,
                                 leftBorder = false,
                                 rightBorder = ( i == span - 1 ) ? true : false
                             } );
