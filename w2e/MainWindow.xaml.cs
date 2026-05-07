@@ -133,6 +133,9 @@ namespace w2e
             string mdDir = Path.Combine(
                     Path.GetDirectoryName( wordPath), Path.GetFileName( wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) );
 
+            /* ログ表示エリアを初期化 */
+            this.m_log.Clear();
+
             try
             {
                 await Task.Run( () =>
