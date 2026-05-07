@@ -135,7 +135,7 @@ namespace w2e.converter
                                 md.NewFile( filePath );
 
                                 /* ログにファイル名を表示 */
-                                onLogUpdate( filePath );
+                                onLogUpdate( fileName );
                             }
                             else if( !string.IsNullOrEmpty( num ) )
                             {
@@ -147,7 +147,7 @@ namespace w2e.converter
                                 md.NewFile( filePath );
 
                                 /* ログにファイル名を表示 */
-                                onLogUpdate( filePath );
+                                onLogUpdate( fileName );
                             }
 
                             /* 行出力 */
@@ -169,7 +169,7 @@ namespace w2e.converter
                                 md.NewFile( filePath );
 
                                 /* ログにファイル名を表示 */
-                                onLogUpdate( filePath );
+                                onLogUpdate( fileName );
                             }
 
                             ConvertTable( table, md );

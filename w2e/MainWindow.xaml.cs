@@ -140,6 +140,10 @@ namespace w2e
             {
                 await Task.Run( () =>
                 {
+
+                    /* 開始ログ */
+                    this.UpdateLog( Environment.NewLine + "Wordファイル読込中..." + Environment.NewLine );
+
                     if( output2Excel_flg )
                     {
                         W2EConverter.Convert( wordPath, excelPath, this.m_cts.Token );
@@ -149,6 +153,9 @@ namespace w2e
                         Directory.CreateDirectory( mdDir );
                         W2MdConverter.Convert( wordPath, mdDir, this.m_cts.Token );
                     }
+
+                    /* 完了ログ */
+                    this.UpdateLog( Environment.NewLine + "===== 変換完了 =====" );
 
                     /* ExcelファイルまたはMarkDownファイル出力フォルダを開く */
                     try
