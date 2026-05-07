@@ -34,6 +34,11 @@ namespace w2e.converter
         private const int PROGRESS_EXCEL_RANGE = 60;
 
         /// <summary>
+        /// 先頭シートのシート名
+        /// </summary>
+        private const string TOP_SHEET_NAME = "トップ";
+
+        /// <summary>
         /// 進捗情報の処理を委譲するDelegate
         /// </summary>
         /// <param name="a_value"></param>
@@ -96,6 +101,7 @@ namespace w2e.converter
 
                         WorksheetPart wsPart = null;
                         Excel.SheetData sheetData = null;
+                        string sheetName = TOP_SHEET_NAME;
                         uint sheetId = 1;
                         int row = 1;
 
@@ -140,18 +146,24 @@ namespace w2e.converter
                                 if( null == wsPart )
                                 {
                                     /* シートが未登録の場合 */
-    
+
                                     /* 先頭シートを追加 */
-                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, "トップ", sheetId++, out sheetData );
-                                    /* シートが変わったので行を先頭に戻す */
-                                    row = 1;
+                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, sheetName, sheetId++, out sheetData );
+
+                                    /* ログにシート名を表示 */
+                                    onLogUpdate( sheetName );
                                 }
                                 else if( !string.IsNullOrEmpty( numData.text ) )
                                 {
                                     /* 章番号を取得した場合 */
-    
+
                                     /* 章番号 章タイトル のシートを追加 */
-                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, ExcelHelper.SafeSheetName( numData.text + " " + textData.text ), sheetId++, out sheetData );
+                                    sheetName = ExcelHelper.SafeSheetName( numData.text + " " + textData.text );
+                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, sheetName, sheetId++, out sheetData );
+
+                                    /* ログにシート名を表示 */
+                                    onLogUpdate( sheetName );
+
                                     /* シートが変わったので行を先頭に戻す */
                                     row = 1;
                                 }
@@ -170,9 +182,11 @@ namespace w2e.converter
                                 {
                                     /* シートが未登録の場合 */
 
-                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, "トップ", sheetId++, out sheetData );
-                                    /* シートが変わったので行を先頭に戻す */
-                                    row = 1;
+                                    /* 先頭シートを追加 */
+                                    wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, sheetName, sheetId++, out sheetData );
+
+                                    /* ログにシート名を表示 */
+                                    onLogUpdate( sheetName );
                                 }
 
                                 ConvertTable( wbPart, table, sheetData, ref row, cache );

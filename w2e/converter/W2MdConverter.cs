@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using w2e.excel;
 using w2e.file;
 using w2e.markdown;
 using w2e.word;
@@ -32,6 +31,11 @@ namespace w2e.converter
         /// MarkDown書出完了時の進捗値を表す定数
         /// </summary>
         private const int PROGRESS_MARKDOWN_RANGE = 60;
+
+        /// <summary>
+        /// 先頭ファイルのファイル名
+        /// </summary>
+        private const string TOP_FILE_NAME = "トップ.md";
 
         /// <summary>
         /// 進捗情報の処理を委譲するDelegate
@@ -82,7 +86,8 @@ namespace w2e.converter
                     var md = new MarkDownWriter();
 
                     /* 現在のファイル情報を初期化 */
-                    string currentFile = null;
+                    string fileName = TOP_FILE_NAME;
+                    string filePath = Path.Combine( a_outputDir, fileName );
 
                     int total = body.Elements().Count();
                     int current = 0;
@@ -122,22 +127,27 @@ namespace w2e.converter
                             }
 
                             /* ファイルが未登録の場合、または章番号を取得した場合は新規ファイルを作成する */
-                            if( null == currentFile )
+                            if( null == filePath )
                             {
                                 /* ファイルが未登録の場合 */
 
                                 /* 先頭ファイルを追加 */
-                                currentFile = Path.Combine( a_outputDir, "トップ.md" );
-                                md.NewFile( currentFile );
+                                md.NewFile( filePath );
+
+                                /* ログにファイル名を表示 */
+                                onLogUpdate( filePath );
                             }
                             else if( !string.IsNullOrEmpty( num ) )
                             {
                                 /* 章番号を取得した場合 */
 
                                 /* 章番号 章タイトル のファイルを追加 */
-                                string fileName = ExcelHelper.SafeSheetName(num + " " + text) + ".md";
-                                currentFile = Path.Combine( a_outputDir, fileName );
-                                md.NewFile( currentFile );
+                                fileName = MarkDownWriter.SafeFileName( num + " " + text ) + ".md";
+                                filePath = Path.Combine( a_outputDir, fileName );
+                                md.NewFile( filePath );
+
+                                /* ログにファイル名を表示 */
+                                onLogUpdate( filePath );
                             }
 
                             /* 行出力 */
@@ -151,12 +161,15 @@ namespace w2e.converter
                         if( null != table )
                         {
                             /* ファイルが未登録の場合は新規ファイルを作成する */
-                            if( null == currentFile )
+                            if( null == filePath )
                             {
                                 /* ファイルが未登録の場合 */
 
-                                currentFile = Path.Combine( a_outputDir, "トップ.md" );
-                                md.NewFile( currentFile );
+                                /* 先頭ファイルを追加 */
+                                md.NewFile( filePath );
+
+                                /* ログにファイル名を表示 */
+                                onLogUpdate( filePath );
                             }
 
                             ConvertTable( table, md );

@@ -20,6 +20,25 @@ namespace w2e.markdown
         /// </summary>
         private string m_currentFile;
 
+        /// <summary>
+        /// ファイル名の禁止文字を除去して返す
+        /// </summary>
+        /// <param name="a_name">禁止文字を除去する前のファイル名</param>
+        /// <returns>禁止文字を除去したファイル名</returns>
+        public static string SafeFileName( string a_name )
+        {
+            /* ファイル名の禁止文字を半角スペースに置換 */
+            char[] invalidid = { '\\', '/', '*', '<', '>', ':', '?', ',', '、', '／' };
+            foreach( char c in invalidid )
+            {
+                a_name = a_name.Replace( c, ' ' );
+            }
+
+            /* 全角スペースを除去 */
+            a_name = a_name.Replace( "　", "" );
+
+            return string.IsNullOrWhiteSpace( a_name ) ? "File" : a_name.Trim();
+        }
 
         /// <summary>
         /// 現在のファイルを書き出してから新しいファイル用に情報を初期化します
