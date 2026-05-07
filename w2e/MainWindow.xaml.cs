@@ -233,7 +233,7 @@ namespace w2e
             Dispatcher.Invoke( () =>
             {
                 Console.WriteLine( a_value );
-                this.m_log.AppendText( a_value );
+                this.m_log.AppendText( a_value + Environment.NewLine );
                 this.m_log.ScrollToEnd();
             } );
         }
