@@ -1,6 +1,8 @@
 ﻿using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.ExtendedProperties;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -172,6 +174,58 @@ namespace w2e.word
                     }
 
                     sb.Append( value );
+                }
+            }
+
+            return sb.ToString();
+        }
+
+
+        /// <summary>
+        /// Word の表のセル内の文字列を取得する
+        /// </summary>
+        /// <param name="a_cell">文字列を取得する Word の表セル</param>
+        /// <returns>セル内の文字列</returns>
+        /// <remarks>
+        /// Word の段落区切りや改行は改行コードに変換する
+        /// </remarks>
+        public static string GetCellText( TableCell a_cell )
+        {
+            StringBuilder sb = new StringBuilder();
+
+            /* 最初の段落かどうかを判定するフラグ
+             * 段落の先頭には改行を付与したくないため2段落目以降のみ改行する
+             */
+            bool firstParagraph = true;
+            
+            /* セル内の Paragraph（段落）を順番に処理する */
+            foreach( Paragraph para in a_cell.Elements<Paragraph>() )
+            {
+                /* 2段落目以降の場合 */
+                if( !firstParagraph )
+                {
+                    sb.Append( Environment.NewLine );
+                }
+
+                /* 1段落目の処理が終わったためフラグをオフにする */
+                firstParagraph = false;
+
+                /* 段落内の要素を順番に処理する */
+                foreach( OpenXmlElement elem in para.Descendants() )
+                {
+                    if( elem is Break )
+                    {
+                        /* 改行の場合 */
+                        sb.Append( Environment.NewLine );
+                    }
+                    else
+                    {
+                        if( elem is Text text )
+                        {
+                            /* 文字列の場合 */
+                            sb.Append( text.Text );
+                        }
+                    }
                 }
             }
 

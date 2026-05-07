@@ -314,7 +314,7 @@ namespace w2e.converter
                     values.Add(
                         new CellData()
                         {
-                            text = isContinue_flg ? "" : WordHelper.GetVisibleText( tc ),
+                            text = isContinue_flg ? "" : WordHelper.GetCellText( tc ),
                             topBorder = ( null == vertical ) ? true : isRestart_flg,
                             bottomBorder = ( null == vertical ) ? true : isContinue_flg,
                             leftBorder = true,
