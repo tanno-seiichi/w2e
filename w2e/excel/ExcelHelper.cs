@@ -46,7 +46,7 @@ namespace w2e.excel
         public static string SafeSheetName( string a_name )
         {
             /* Excelシート名の禁止文字を半角スペースに置換 */
-            char[] invalidid = { '\\', '/', '*', '[', ']', ':', '?', ',', '、', '／' };
+            char[] invalidid = { '\\', '/', '*', '[', ']', ':', '?', ',', '、', '／', '：' };
             foreach( char c in invalidid )
             {
                 a_name = a_name.Replace( c, ' ' );
