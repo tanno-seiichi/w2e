@@ -181,23 +181,35 @@ namespace w2e
                         m_converter.Convert( wordPath, mdDir, this.m_cts.Token );
                     }
 
-                    /* 完了ログ */
-                    this.UpdateLog( Environment.NewLine + "===== 変換完了 =====" );
+                    if( m_cts.Token.IsCancellationRequested )
+                    {
+                        /* 処理中断された場合 */
 
-                    /* ExcelファイルまたはMarkDownファイル出力フォルダを開く */
-                    try
-                    {
-                        System.Diagnostics.Process.Start(
-                            new System.Diagnostics.ProcessStartInfo()
-                            {
-                                FileName = output2Excel_flg ? excelPath : mdDir,
-                                UseShellExecute = true
-                            } );
+                        /* 中断ログ */
+                        this.UpdateLog( Environment.NewLine + "===== 処理中断 =====" );
                     }
-                    catch( Exception ex )
+                    else
                     {
-                        Console.WriteLine( ex.Message );
-                        UpdateLog( ex.Message );
+                        /* 処理中断されなかった場合 */
+
+                        /* 完了ログ */
+                        this.UpdateLog( Environment.NewLine + "===== 変換完了 =====" );
+
+                        /* ExcelファイルまたはMarkDownファイル出力フォルダを開く */
+                        try
+                        {
+                            System.Diagnostics.Process.Start(
+                                new System.Diagnostics.ProcessStartInfo()
+                                {
+                                    FileName = output2Excel_flg ? excelPath : mdDir,
+                                    UseShellExecute = true
+                                } );
+                        }
+                        catch( Exception ex )
+                        {
+                            Console.WriteLine( ex.Message );
+                            UpdateLog( ex.Message );
+                        }
                     }
                 } );
             }
