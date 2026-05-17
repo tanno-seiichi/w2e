@@ -18,6 +18,11 @@ namespace w2e
     public partial class MainWindow : Window
     {
         /// <summary>
+        /// 変換処理を実行するクラスのインターフェース
+        /// </summary>
+        private IConverter m_converter;
+        
+        /// <summary>
         /// 変換処理のキャンセルを制御するためのトークンソース
         /// </summary>
         private CancellationTokenSource m_cts;
@@ -25,18 +30,11 @@ namespace w2e
 
         /// <summary>
         /// コンストラクタ。
-        /// UI初期化およびコンバータのコールバック設定を行います。
         /// </summary>
         public MainWindow()
         {
             /* UIを初期化 */
             InitializeComponent();
-
-            /* コールバックを設定 */
-            W2EConverter.onProgressUpdate = this.UpdateProgressBar;
-            W2EConverter.onLogUpdate = this.UpdateLog;
-            W2MdConverter.onProgressUpdate = this.UpdateProgressBar;
-            W2MdConverter.onLogUpdate = this.UpdateLog;
         }
 
 
@@ -146,12 +144,28 @@ namespace w2e
 
                     if( output2Excel_flg )
                     {
-                        W2EConverter.Convert( wordPath, excelPath, this.m_cts.Token );
+                        /* Excelの時 */
+
+                        /* コンバータを設定 */
+                        m_converter = new W2EConverter();
+                        m_converter.onProgressUpdate = this.UpdateProgressBar;
+                        m_converter.onLogUpdate = this.UpdateLog;
+
+                        /* 変換開始 */
+                        m_converter.Convert( wordPath, excelPath, this.m_cts.Token );
                     }
                     else
                     {
+                        /* MarkDownの時 */
+
+                        /* コンバータを設定 */
+                        m_converter = new W2MdConverter();
+                        m_converter.onProgressUpdate = this.UpdateProgressBar;
+                        m_converter.onLogUpdate = this.UpdateLog;
+
+                        /* 変換開始 */
                         Directory.CreateDirectory( mdDir );
-                        W2MdConverter.Convert( wordPath, mdDir, this.m_cts.Token );
+                        m_converter.Convert( wordPath, mdDir, this.m_cts.Token );
                     }
 
                     /* 完了ログ */
@@ -178,6 +192,14 @@ namespace w2e
             {
                 this.m_btnConvert.IsEnabled = true;
                 this.m_btnCancel.IsEnabled = false;
+
+                /* コンバータを破棄 */
+                if( null != m_converter )
+                {
+                    m_converter.onProgressUpdate -= this.UpdateProgressBar;
+                    m_converter.onLogUpdate -= this.UpdateLog;
+                    m_converter = null;
+                }
             }
         }
 

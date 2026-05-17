@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using w2e.delegates;
 using w2e.excel;
 using w2e.file;
 using w2e.word;
@@ -16,7 +17,7 @@ namespace w2e.converter
     /// <summary>
     /// Wordファイルの内容をExcelファイルに書き出すクラス
     /// </summary>
-    public class W2EConverter
+    public class W2EConverter : IConverter
     {
         /// <summary>
         /// 開始時の進捗値を表す定数
@@ -37,28 +38,16 @@ namespace w2e.converter
         /// 先頭シートのシート名
         /// </summary>
         private const string TOP_SHEET_NAME = "トップ";
-
-        /// <summary>
-        /// 進捗情報の処理を委譲するDelegate
-        /// </summary>
-        /// <param name="a_value"></param>
-        public delegate void UpdateProgressDelegate( int a_value );
-
-        /// <summary>
-        /// ログ出力処理をを委譲するDelegate
-        /// </summary>
-        /// <param name="a_value"></param>
-        public delegate void UpdateLogDelegate( string a_value );
         
         /// <summary>
         /// 進捗情報が更新された時の処理
         /// </summary>
-        public static UpdateProgressDelegate onProgressUpdate { get; set; }
+        public Delegates.UpdateProgressDelegate onProgressUpdate { get; set; }
 
         /// <summary>
         /// ログが出力された時の処理
         /// </summary>
-        public static UpdateLogDelegate onLogUpdate { get; set; }
+        public Delegates.UpdateLogDelegate onLogUpdate { get; set; }
 
 
         /// <summary>
@@ -67,7 +56,7 @@ namespace w2e.converter
         /// <param name="a_wordPath">Wordファイルのパス</param>
         /// <param name="a_excelPath">Excelファイルのパス</param>
         /// <param name="a_token">処理中断通知</param>
-        public static void Convert( string a_wordPath, string a_excelPath, CancellationToken a_token )
+        public void Convert( string a_wordPath, string a_excelPath, CancellationToken a_token )
         {
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
             string tempPath = FileCopy.CreateTempCopy( a_wordPath );
@@ -232,7 +221,7 @@ namespace w2e.converter
         /// <param name="a_table">変換元の Word の表</param>
         /// <param name="a_sheetData">出力先 Excel シートデータ</param>
         /// <param name="a_row">Excel の出力開始行番号（出力後は次の行番号へ更新される）</param>
-        private static void ConvertTable( WorkbookPart a_wbPart, Word.Table a_table, SheetData a_sheetData, ref int a_row, Dictionary<string, uint> a_cache )
+        private void ConvertTable( WorkbookPart a_wbPart, Word.Table a_table, SheetData a_sheetData, ref int a_row, Dictionary<string, uint> a_cache )
         {
             /* -----------------------------------------------------------------
              * Word 表の全行を List にして index で参照できるようにする

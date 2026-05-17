@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using w2e.delegates;
 using w2e.file;
 using w2e.markdown;
 using w2e.word;
@@ -15,7 +16,7 @@ namespace w2e.converter
     /// <summary>
     /// Wordファイルの内容をMarkDownファイルに書き出すクラス
     /// </summary>
-    public class W2MdConverter
+    public class W2MdConverter : IConverter
     {
         /// <summary>
         /// 開始時の進捗値を表す定数
@@ -38,26 +39,14 @@ namespace w2e.converter
         private const string TOP_FILE_NAME = "トップ.md";
 
         /// <summary>
-        /// 進捗情報の処理を委譲するDelegate
-        /// </summary>
-        /// <param name="a_value"></param>
-        public delegate void UpdateProgressDelegate( int a_value );
-
-        /// <summary>
-        /// ログ出力処理をを委譲するDelegate
-        /// </summary>
-        /// <param name="a_value"></param>
-        public delegate void UpdateLogDelegate( string a_value );
-
-        /// <summary>
         /// 進捗情報が更新された時の処理
         /// </summary>
-        public static UpdateProgressDelegate onProgressUpdate { get; set; }
+        public Delegates.UpdateProgressDelegate onProgressUpdate { get; set; }
 
         /// <summary>
         /// ログが出力された時の処理
         /// </summary>
-        public static UpdateLogDelegate onLogUpdate { get; set; }
+        public Delegates.UpdateLogDelegate onLogUpdate { get; set; }
 
 
         /// <summary>
@@ -66,7 +55,7 @@ namespace w2e.converter
         /// <param name="a_wordPath">Wordファイルのパス</param>
         /// <param name="a_outputDir">MarkDownファイルの出力先ディレクトリ</param>
         /// <param name="a_token">処理中断通知</param>
-        public static void Convert( string a_wordPath, string a_outputDir, CancellationToken a_token )
+        public void Convert( string a_wordPath, string a_outputDir, CancellationToken a_token )
         {
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
             string tempPath = FileCopy.CreateTempCopy(a_wordPath);
@@ -209,7 +198,7 @@ namespace w2e.converter
         /// </summary>
         /// <param name="a_table">変換元の Word の表</param>
         /// <param name="a_md">出力先 MarkDown ファイル</param>
-        private static void ConvertTable( Word.Table a_table, MarkDownWriter a_md )
+        private void ConvertTable( Word.Table a_table, MarkDownWriter a_md )
         {
             bool headerDone = false;
 

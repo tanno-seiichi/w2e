@@ -61,7 +61,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="converter\IConverter.cs" />
     <Compile Include="converter\W2MdConverter.cs" />
+    <Compile Include="delegates\DelegateDefs.cs" />
     <Compile Include="excel\BorderHelper.cs" />
     <Compile Include="excel\CellData.cs" />
     <Compile Include="excel\ExcelHelper.cs" />
