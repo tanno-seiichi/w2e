@@ -98,13 +98,26 @@ namespace w2e
         /// Wordファイルパス変更時の処理
         /// </summary>
         /// <remarks>
-        /// ファイルの存在有無に応じて変換ボタンの有効／無効を切り替える
+        /// ・プログレスバーを初期化する
+        /// ・ファイルの存在有無に応じて変換ボタンの有効／無効を切り替える
         /// </remarks>
         /// <param name="a_sender">イベント発生元オブジェクト</param>
         /// <param name="a_args">イベントデータ</param>
-        private void WordPathChanged( object sender, TextChangedEventArgs a_args )
+        private void WordPathChanged( object a_sender, TextChangedEventArgs a_args )
         {
+            this.UpdateProgressBar( 0 );
             this.EnableBtnConvert();
+        }
+
+
+        /// <summary>
+        /// 出力フォーマット切時の処理
+        /// </summary>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
+        private void RadioBtnOutputChecked( object a_sender, RoutedEventArgs a_args )
+        {
+            this.UpdateProgressBar( 0 );
         }
 
 
@@ -248,6 +261,14 @@ namespace w2e
         {
             Dispatcher.Invoke( () =>
             {
+                if( 100 == a_value )
+                {
+                    this.m_progressBarMsg.Text = "完了";
+                }
+                else
+                {
+                    this.m_progressBarMsg.Text = string.Empty;
+                }
                 this.m_progressBar.Value = a_value;
             } );
         }

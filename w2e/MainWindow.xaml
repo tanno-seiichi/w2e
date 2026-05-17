@@ -5,12 +5,13 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:w2e"
         mc:Ignorable="d"
-        Title="MainWindow" Height="168" Width="500" MinHeight="168" WindowStartupLocation="CenterScreen"
+        Title="MainWindow" Height="164" Width="500" MinHeight="164" WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip"
         Loaded="WindowLoaded"
         Closed="WindowClosed">
     <Grid Margin="5">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><!-- 0. 読込ファイル選択 -->
+            <RowDefinition Height="Auto"/><!-- 0. 読込ファイル指定, 出力フォーマット選択 -->
             <RowDefinition Height="5"/><!-- 1. 余白 -->
             <RowDefinition Height="Auto"/><!-- 2. 操作ボタン -->
             <RowDefinition Height="5"/><!-- 3. 余白 -->
@@ -19,51 +20,54 @@
             <RowDefinition Height="*"/><!-- 6. ログ表示 -->
         </Grid.RowDefinitions>
 
-        <!-- 0. 読込ファイル選択 -->
+        <!-- 0. 読込ファイル指定, 出力フォーマット選択 -->
         <Grid Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/><!-- 0-0. 読込ファイル指定-->
+                <RowDefinition Height="Auto"/><!-- 0-1. 出力フォーマット選択 -->
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Label Grid.Column="0" Content="Wordファイルを指定" VerticalAlignment="Center" HorizontalAlignment="Left"/>
-            <TextBox Grid.Column="1" x:Name="m_wordPath" VerticalContentAlignment="Center" BorderThickness="1,1,0,1" TextChanged="WordPathChanged"/>
-            <Button Grid.Column="2" Content="..." Padding="5,0" Click="BtnOpenFileClick"/>
+            <!-- 0-0. 読込ファイル指定-->
+            <Label Grid.Row="0" Grid.Column="0" Content="Wordファイルを指定" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="m_wordPath" VerticalContentAlignment="Center" BorderThickness="1,1,0,1" TextChanged="WordPathChanged"/>
+            <Button Grid.Row="0" Grid.Column="2" Content="..." Padding="5,0" Click="BtnOpenFileClick"/>
+
+            <!-- 0-1. 出力フォーマット選択 -->
+            <Label Grid.Row="2" Grid.Column="0" Content="出力フォーマットを選択" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center" Orientation="Horizontal" Margin="0,3,0,0">
+                <Grid Width="10"/>
+                <RadioButton x:Name="m_excel" GroupName="output" Content="Excel" Checked="RadioBtnOutputChecked"/>
+                <Grid Width="15"/>
+                <RadioButton x:Name="m_markDown" GroupName="output" Content="MarkDown"/>
+            </StackPanel>
+
         </Grid>
 
         <!-- 1. 余白 -->
         
         <!-- 2. 操作ボタン -->
         <Grid Grid.Row="2">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="8"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="7"/>
-            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Row="0" Grid.Column="0" x:Name="m_btnConvert" Content="変換実行" Padding="5" Click="BtnConvertClick" IsEnabled="False"/>
-            <Grid Grid.Row="0" Grid.Column="1" Width="5"/>
-            <Button Grid.Row="0" Grid.Column="2" x:Name="m_btnCancel" Content="処理中断" Padding="5" Click="BtnCancelClick" IsEnabled="False"/>
-
-            <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
-                <Grid Width="10"/>
-                <RadioButton x:Name="m_excel" GroupName="output" Content="Excel"/>
-                <Grid Width="15"/>
-                <RadioButton x:Name="m_markDown" GroupName="output" Content="MarkDown"/>
-            </StackPanel>
+            <Button Grid.Column="0" x:Name="m_btnConvert" Content="変換実行" Padding="5" Click="BtnConvertClick" IsEnabled="False"/>
+            <Grid Grid.Column="1" Width="5"/>
+            <Button Grid.Column="2" x:Name="m_btnCancel" Content="処理中断" Padding="5" Click="BtnCancelClick" IsEnabled="False"/>
         </Grid>
 
         <!-- 3. 余白 -->
         
         <!-- 4. プログレスバー -->
         <ProgressBar Grid.Row="4" x:Name="m_progressBar" Minimum="0" Maximum="100" Height="25"/>
+        <TextBlock Grid.Row="4" x:Name="m_progressBarMsg" Background="Transparent" Foreground="White" FontSize="15" VerticalAlignment="Center" HorizontalAlignment="Center"/>
 
         <!-- 5. 余白 -->
         
