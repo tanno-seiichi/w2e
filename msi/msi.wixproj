@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="License.rtf" />
+    <Content Include="LICENSE.txt" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\w2e\w2e.csproj" />
