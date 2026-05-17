@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:w2e"
         mc:Ignorable="d"
-        Title="MainWindow" Height="164" Width="500" MinHeight="164" WindowStartupLocation="CenterScreen"
+        Title="" Height="164" Width="500" MinHeight="164" WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip"
         Loaded="WindowLoaded"
         Closed="WindowClosed">
