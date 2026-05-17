@@ -1,0 +1,39 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <ComponentGroup Id="w2e" Directory="INSTALLFOLDER">
+
+		<!-- Application -->
+		<Component Id="MainExeComponent" Directory="INSTALLFOLDER" Guid="*">
+			<File Id="MainExeFile" Source="w2e.exe" KeyPath="yes" />
+		</Component>
+		<Component Id="ConfigComponent">
+			<File Source="w2e.exe.config" />
+		</Component>
+		
+		<!-- OpenXML DLL -->
+		<Component Id="OpenXmlDllComponent" Guid="*">
+			<File Source="DocumentFormat.OpenXml.dll" KeyPath="yes" />
+			<File Source="DocumentFormat.OpenXml.xml" />
+		</Component>
+
+		<!-- OpenXML Framework DLL -->
+		<Component Id="OpenXmlFrameworkDllComponent" Guid="*">
+			<File Source="DocumentFormat.OpenXml.Framework.dll" KeyPath="yes" />
+			<File Source="DocumentFormat.OpenXml.Framework.xml" />
+		</Component>
+
+
+		<!-- スタートメニューショートカット -->
+		<Component Id="StartMenuShortcutComponent" Directory="ProgramMenuDir" Guid="*">
+			<Shortcut Id="StartMenuShortcut" Name="w2e" Target="[INSTALLFOLDER]w2e.exe" WorkingDirectory="INSTALLFOLDER" >
+				<ShortcutProperty Key="System.AppUserModel.ID" Value="tanno-seiichi.w2e"/>
+			</Shortcut>
+
+			<RemoveFolder Id="RemoveProgramMenuDir" Directory="ProgramMenuDir" On="uninstall" />
+        
+			<RegistryValue Root="HKCU" Key="Software\tanno-seiichi\w2e" Name="StartMenu" Type="integer" Value="1" KeyPath="yes"/>
+		</Component>		
+
+	</ComponentGroup>
+  </Fragment>
+</Wix>

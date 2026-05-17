@@ -1,0 +1,20 @@
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+	  Name="w2e"
+	  Manufacturer="tanno-seiichi"
+	  Version="1.0.0"
+	  UpgradeCode="{A6C199CF-EF8C-474E-8AA2-FB83C94A07C1}"
+	  Scope="perMachine">
+	  
+    <MajorUpgrade
+		DowngradeErrorMessage="!(loc.DowngradeError)" />
+
+	  <ui:WixUI Id="WixUI_Minimal" />
+	  <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />	  
+	  
+    <Feature Id="Main">
+      <ComponentGroupRef Id="w2e" />
+    </Feature>
+  </Package>
+</Wix>
