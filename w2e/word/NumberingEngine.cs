@@ -26,7 +26,11 @@ namespace w2e.word
         public string Generate( NumberingDefinition a_def, int a_level )
         {
             /* Wordの"Numbering Level Text"を取得 */
-            string result = a_def.Levels[a_level].text ?? "";
+            string result = "";
+            if( a_def.Levels.ContainsKey( a_level ) )
+            {
+                result = a_def.Levels[a_level].text ?? "";
+            }
 
             if( result.Equals( "%1　" ) )
             {
