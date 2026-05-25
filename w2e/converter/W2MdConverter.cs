@@ -36,7 +36,7 @@ namespace w2e.converter
         /// <summary>
         /// 先頭ファイルのファイル名
         /// </summary>
-        private const string TOP_FILE_NAME = "トップ.md";
+        private const string TOP_FILE_NAME = "0 トップ.md";
 
         /// <summary>
         /// 進捗情報が更新された時の処理
@@ -77,6 +77,10 @@ namespace w2e.converter
                     /* 現在のファイル情報を初期化 */
                     string fileName = TOP_FILE_NAME;
                     string filePath = Path.Combine( a_outputDir, fileName );
+                    md.NewFile( filePath );
+
+                    /* ログにファイル名を表示 */
+                    onLogUpdate( fileName );
 
                     int total = body.Elements().Count();
                     int current = 0;
@@ -115,18 +119,8 @@ namespace w2e.converter
                                 num = engine.Generate( numberingMap[numId.Value], levelValue );
                             }
 
-                            /* ファイルが未登録の場合、または章番号を取得した場合は新規ファイルを作成する */
-                            if( null == filePath )
-                            {
-                                /* ファイルが未登録の場合 */
-
-                                /* 先頭ファイルを追加 */
-                                md.NewFile( filePath );
-
-                                /* ログにファイル名を表示 */
-                                onLogUpdate( fileName );
-                            }
-                            else if( !string.IsNullOrEmpty( num ) )
+                            /* 章番号を取得した場合は新規ファイルを作成する */
+                            if( !string.IsNullOrEmpty( num ) )
                             {
                                 /* 章番号を取得した場合 */
 
@@ -149,18 +143,6 @@ namespace w2e.converter
                         Word.Table table = element as Word.Table;
                         if( null != table )
                         {
-                            /* ファイルが未登録の場合は新規ファイルを作成する */
-                            if( null == filePath )
-                            {
-                                /* ファイルが未登録の場合 */
-
-                                /* 先頭ファイルを追加 */
-                                md.NewFile( filePath );
-
-                                /* ログにファイル名を表示 */
-                                onLogUpdate( fileName );
-                            }
-
                             ConvertTable( table, md );
 
                             md.AddLine( "" );
@@ -171,6 +153,13 @@ namespace w2e.converter
                     /* 最後のファイルを保存する */
                     md.Save();
                 }
+            }
+            catch( Exception ex )
+            {
+                string errMsg = "エラーが発生しました" + Environment.NewLine + Environment.NewLine + ex.Message;
+                Console.WriteLine( errMsg );
+                onLogUpdate( errMsg );
+                System.Windows.MessageBox.Show( errMsg );
             }
             finally
             {
