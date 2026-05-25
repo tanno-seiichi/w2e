@@ -33,7 +33,7 @@ namespace w2e.word
             }
 
             if( result.Equals( "%1　" ) ||
-                result.Equals( "%!" ) )
+                result.Equals( "%1" ) )
             {
                 return ConvertChapterNum( result.Trim() );
             }
