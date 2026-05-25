@@ -118,12 +118,16 @@ namespace w2e.converter
                                 var info = WordHelper.GetNumberingInfo( para, stylePart );
                                 int? numId = info.numId;
                                 int? level = info.level;
+                                WordHelper.NumberingTypeEn numberingType = info.numberingType;
 
                                 CellData textData = new CellData() { text = WordHelper.GetVisibleText( para ) };
                                 CellData numData = new CellData() { text = "" };
 
+                                bool isHeading_flg = WordHelper.NumberingTypeEn.HEADING == numberingType;
+
                                 /* 有効な番号付情報と章タイトルの組合せを検出したら章番号を設定する */
-                                if( !string.IsNullOrEmpty( textData.text ) &&
+                                if( isHeading_flg &&
+                                    !string.IsNullOrEmpty( textData.text ) &&
                                     numId.HasValue &&
                                     numberingMap.ContainsKey( numId.Value ) )
                                 {

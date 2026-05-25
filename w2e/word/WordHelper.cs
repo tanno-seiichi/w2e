@@ -15,36 +15,74 @@ namespace w2e.word
     public static class WordHelper
     {
         /// <summary>
+        /// Word文書に定義されている番号付け情報（Numbering）の種別
+        /// </summary>
+        public enum NumberingTypeEn
+        {
+            NONE,
+            HEADING
+        }
+
+        /// <summary>
         /// 指定された段落から章番号の情報を取得する
         /// </summary>
-        /// <param name="a_pars">段落オブジェクト</param>
+        /// <param name="a_pars">対象の段落</param>
         /// <param name="a_stylePart">スタイル定義パート（段落に直接番号情報が存在しない場合、スタイルから番号情報を取得するために使用する）</param>
-        /// <returns>NumberingIdおよびレベル</returns>
-        public static (int? numId, int? level) GetNumberingInfo( Paragraph a_pars, StyleDefinitionsPart a_stylePart )
+        /// <returns>番号リストID, アウトラインレベル, 番号付け種別</returns>
+        public static (int? numId, int? level, NumberingTypeEn numberingType) GetNumberingInfo( Paragraph a_pars, StyleDefinitionsPart a_stylePart )
         {
-            /* 優先順位は以下の通りです：
+            /* スタイルが設定されていない、または見出しスタイルでない場合は空の番号情報を返す */
+
+            /* 段落に設定されているスタイルIDを取得 */
+            string styleId = a_pars.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+            if( null == styleId )
+            {
+                /* スタイルが設定されていない場合は空の番号情報を返す */
+                return ( null, null, NumberingTypeEn.NONE );
+            }
+
+            /* スタイルIDに一致するスタイル定義を取得 */
+            Style style = a_stylePart?.Styles?.Elements<Style>().FirstOrDefault( s => s.StyleId == styleId );
+
+            /* スタイル名を取得 */
+            string styleName = style?.StyleName?.Val?.Value;
+
+            /* 見出しスタイルか判定
+             * 箇条書きの番号を章番号として誤検出しないため、
+             * heading 系スタイルのみ章番号対象とする
+             */
+            bool isHeadingStyle_flg = !string.IsNullOrEmpty( styleName ) &&
+                                    styleName.StartsWith( "heading", StringComparison.OrdinalIgnoreCase );
+            if( !isHeadingStyle_flg )
+            {
+                /* 見出しスタイルでない場合は空の番号情報を返す */
+                return ( null, null, NumberingTypeEn.NONE );
+            }
+
+            /* 番号情報を取得する */
+
+            /* 優先順位
              * 1. 段落に直接設定されている番号情報
              * 2. 段落スタイルに設定されている番号情報
-             * スタイル情報が存在しない場合や、番号情報が未定義の場合は null を返します。
              */
 
+            /* 1. 段落に番号情報が設定されていた場合はその番号情報を返す */
             NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
             if( null != numPr )
             {
                 return (
                     (int?)numPr.NumberingId?.Val?.Value,
-                    (int?)numPr.NumberingLevelReference?.Val?.Value
+                    (int?)numPr.NumberingLevelReference?.Val?.Value,
+                    NumberingTypeEn.HEADING
                 );
             }
 
-            string styleId = a_pars.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
-            if( null == styleId ) { return (null, null); }
-
-            Style style = a_stylePart?.Styles?.Elements<Style>().FirstOrDefault( s => s.StyleId == styleId );
+            /* 2. 段落スタイルに設定されている番号情報を返す */
             NumberingProperties styleNumPr = style?.StyleParagraphProperties?.NumberingProperties;
             return (
                 (int?)styleNumPr?.NumberingId?.Val?.Value,
-                (int?)styleNumPr?.NumberingLevelReference?.Val?.Value
+                (int?)styleNumPr?.NumberingLevelReference?.Val?.Value,
+                NumberingTypeEn.HEADING
             );
         }
 
