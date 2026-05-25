@@ -32,11 +32,13 @@ namespace w2e.word
                 result = a_def.Levels[a_level].text ?? "";
             }
 
-            if( result.Equals( "%1　" ) )
+            if( result.Equals( "%1　" ) ||
+                result.Equals( "%!" ) )
             {
                 return ConvertChapterNum( result.Trim() );
             }
-            else if( result.Contains( "-" ) &&
+            else if( ( result.Contains( "-" ) 
+                    || result.Contains( ".") ) &&
                     1 < result.Length )
             {
                 return ConvertChapterNum( result.Trim() );
@@ -83,9 +85,9 @@ namespace w2e.word
             }
 
             /* 数字以外 (余分な % 等) を整理 */
-            result = Regex.Replace( result, @"[^0-9\-]", "" );
+            result = Regex.Replace( result, @"[^0-9\-.]", "" );
 
-            return result.Trim( '-' );
+            return result.Trim( '-' ).Trim( '.' );
         }
 
 
