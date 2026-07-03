@@ -75,6 +75,7 @@
     <Compile Include="word\NumberingEngine.cs" />
     <Compile Include="converter\W2EConverter.cs" />
     <Compile Include="word\WordHelper.cs" />
+    <Compile Include="word\WordImageHelper.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
