@@ -8,19 +8,14 @@ namespace w2e.word
     public class WordImageData
     {
         /// <summary>
-        /// 保存ファイル名を取得または設定する。
-        /// </summary>
-        public string fileName { get; set; }
-
-        /// <summary>
-        /// ファイル拡張子を取得または設定する。
-        /// </summary>
-        public string extension { get; set; }
-
-        /// <summary>
         /// 画像データを取得または設定する。
         /// </summary>
         public byte[] imageData { get; set; }
+
+        /// <summary>
+        /// 画像の種別を取得または設定する。
+        /// </summary>
+        public string contentType { get; set; }
 
         /// <summary>
         /// 画像の幅（EMU）を取得または設定する。
