@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using DocumentFormat.OpenXml.Drawing;
 using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
+using Word = DocumentFormat.OpenXml.Wordprocessing;
+
 
 namespace w2e.word
 {
@@ -18,7 +19,7 @@ namespace w2e.word
         /// <param name="a_mainDocumentPart">MainDocumentPart</param>
         /// <param name="a_paragraph">対象段落</param>
         /// <returns>画像情報一覧</returns>
-        public static List<WordImageData> GetImages( MainDocumentPart a_mainDocumentPart, Paragraph a_paragraph )
+        public static List<WordImageData> GetImages( MainDocumentPart a_mainDocumentPart, Word.Paragraph a_paragraph )
         {
             List<WordImageData> imageList = new List<WordImageData>();
 
@@ -34,9 +35,9 @@ namespace w2e.word
             }
 
             /* 段落内の画像を順番に取得する */
-            IEnumerable<Drawing> drawingList = a_paragraph.Descendants<Drawing>();
+            IEnumerable<Word.Drawing> drawingList = a_paragraph.Descendants<Word.Drawing>();
 
-            foreach( Drawing drawing in drawingList )
+            foreach( Word.Drawing drawing in drawingList )
             {
                 Blip blip = GetBlip( drawing );
 
@@ -72,7 +73,7 @@ namespace w2e.word
         /// <param name="a_imagePart">ImagePart</param>
         /// <param name="a_relationshipId">RelationshipId</param>
         /// <returns>画像情報</returns>
-        private static WordImageData CreateImageData( Drawing a_drawing, ImagePart a_imagePart, string a_relationshipId )
+        private static WordImageData CreateImageData( Word.Drawing a_drawing, ImagePart a_imagePart, string a_relationshipId )
         {
             /* 画像データを取得する */
             byte[] imageData = GetImageData( a_imagePart );
@@ -141,7 +142,7 @@ namespace w2e.word
         /// <param name="a_drawing">Drawing</param>
         /// <param name="a_widthEmu">画像幅（EMU）</param>
         /// <param name="a_heightEmu">画像高さ（EMU）</param>
-        private static void GetImageSize( Drawing a_drawing, out long a_widthEmu, out long a_heightEmu )
+        private static void GetImageSize( Word.Drawing a_drawing, out long a_widthEmu, out long a_heightEmu )
         {
             /* 初期化 */
             a_widthEmu = 0;
@@ -172,7 +173,7 @@ namespace w2e.word
         /// </summary>
         /// <param name="a_drawing">Drawing</param>
         /// <returns>AltText</returns>
-        private static string GetAltText( Drawing a_drawing )
+        private static string GetAltText( Word.Drawing a_drawing )
         {
             /* 引数チェック */
             if( null == a_drawing )
@@ -203,7 +204,7 @@ namespace w2e.word
         /// </summary>
         /// <param name="a_drawing">Drawing</param>
         /// <returns>Blip。取得できない場合はnull。</returns>
-        private static Blip GetBlip( Drawing a_drawing )
+        private static Blip GetBlip( Word.Drawing a_drawing )
         {
             if( null == a_drawing )
             {
