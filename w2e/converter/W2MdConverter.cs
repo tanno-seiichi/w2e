@@ -39,6 +39,11 @@ namespace w2e.converter
         private const string TOP_FILE_NAME = "0 トップ.md";
 
         /// <summary>
+        /// 画像ファイル名を生成するオブジェクト
+        /// </summary>
+        private readonly ImageFileNameGenerator m_imageFileNameGenerator = new ImageFileNameGenerator();
+
+        /// <summary>
         /// 進捗情報が更新された時の処理
         /// </summary>
         public Delegates.UpdateProgressDelegate onProgressUpdate { get; set; }
@@ -122,6 +127,28 @@ namespace w2e.converter
                             {
                                 int levelValue = level ?? 0;
                                 num = engine.Generate( numberingMap[numId.Value], levelValue );
+                            }
+
+                            /* Wordファイル「画像」の処理 */
+                            if( a_outputImage_flg )
+                            {
+                                List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, para );
+
+                                foreach( WordImageData imageData in imageList )
+                                {
+                                    string imageFileName = m_imageFileNameGenerator.CreateFileName( num, imageData.contentType );
+                                    string imageDirectory = Path.Combine( a_outputDir, "images" );
+
+                                    if( !Directory.Exists( imageDirectory ) )
+                                    {
+                                        Directory.CreateDirectory( imageDirectory );
+                                    }
+
+                                    string imagePath = Path.Combine( imageDirectory, imageFileName );
+                                    File.WriteAllBytes( imagePath, imageData.imageData );
+
+                                    md.AddLine( "![](images/" + imageFileName + ")" );
+                                }
                             }
 
                             /* 章番号を取得した場合は新規ファイルを作成する */
