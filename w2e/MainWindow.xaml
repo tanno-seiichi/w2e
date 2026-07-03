@@ -44,6 +44,8 @@
                 <RadioButton x:Name="m_excel" GroupName="output" Content="Excel" Checked="RadioBtnOutputChecked"/>
                 <Grid Width="15"/>
                 <RadioButton x:Name="m_markDown" GroupName="output" Content="MarkDown" Checked="RadioBtnOutputChecked"/>
+                <Grid Width="30"/>
+                <CheckBox x:Name="m_outputImage_flg" Content="画像を表示する" Click="CheckBoxImageClicked"/>
             </StackPanel>
 
         </Grid>

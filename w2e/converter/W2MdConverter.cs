@@ -54,8 +54,9 @@ namespace w2e.converter
         /// </summary>
         /// <param name="a_wordPath">Wordファイルのパス</param>
         /// <param name="a_outputDir">MarkDownファイルの出力先ディレクトリ</param>
+        /// <param name="a_outputImage_flg">画像を使用するか否か</param>
         /// <param name="a_token">処理中断通知</param>
-        public void Convert( string a_wordPath, string a_outputDir, CancellationToken a_token )
+        public void Convert( string a_wordPath, string a_outputDir, bool a_outputImage_flg, CancellationToken a_token )
         {
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
             string tempPath = FileCopy.CreateTempCopy(a_wordPath);

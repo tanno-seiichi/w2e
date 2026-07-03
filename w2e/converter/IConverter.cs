@@ -23,8 +23,9 @@ namespace w2e.converter
         /// </summary>
         /// <param name="a_inputPath">入力パス</param>
         /// <param name="a_outputPath">出力パス</param>
+        /// <param name="a_outputImage_flg">画像を使用するか否か</param>
         /// <param name="a_token">処理中断通知</param>
-        void Convert( string a_inputPath, string a_outputPath, CancellationToken a_token );
+        void Convert( string a_inputPath, string a_outputPath, bool a_outputImage_flg, CancellationToken a_token );
 
     }
 }

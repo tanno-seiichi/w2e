@@ -55,8 +55,9 @@ namespace w2e.converter
         /// </summary>
         /// <param name="a_wordPath">Wordファイルのパス</param>
         /// <param name="a_excelPath">Excelファイルのパス</param>
+        /// <param name="a_outputImage_flg">画像を使用するか否か</param>
         /// <param name="a_token">処理中断通知</param>
-        public void Convert( string a_wordPath, string a_excelPath, CancellationToken a_token )
+        public void Convert( string a_wordPath, string a_excelPath, bool a_outputImage_flg, CancellationToken a_token )
         {
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
             string tempPath = FileCopy.CreateTempCopy( a_wordPath );
