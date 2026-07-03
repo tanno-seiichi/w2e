@@ -69,6 +69,7 @@
     <Compile Include="excel\ExcelHelper.cs" />
     <Compile Include="file\FileCopy.cs" />
     <Compile Include="markdown\MarkDownWriter.cs" />
+    <Compile Include="word\ImageFileNameGenerator.cs" />
     <Compile Include="word\WordImageData.cs" />
     <Compile Include="word\LevelDefinition.cs" />
     <Compile Include="word\NumberingDefinition.cs" />
