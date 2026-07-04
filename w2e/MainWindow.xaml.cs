@@ -54,6 +54,7 @@ namespace w2e
             this.m_wordPath.Text = Properties.Settings.Default.wordPath;
             this.m_markDown.IsChecked = ( this.m_markDown.Content.ToString() == Properties.Settings.Default.output );
             this.m_excel.IsChecked = !this.m_markDown.IsChecked.Value;
+            this.m_outputImage_flg.IsChecked = ( "true" == Properties.Settings.Default.outputImage.ToLower() );
             this.EnableBtnConvert();
         }
 
@@ -74,6 +75,7 @@ namespace w2e
             /* 終了時の設定値を保存する */
             Properties.Settings.Default.wordPath = this.m_wordPath.Text;
             Properties.Settings.Default.output = ( this.m_excel.IsChecked.Value ) ? this.m_excel.Content.ToString() : this.m_markDown.Content.ToString();
+            Properties.Settings.Default.outputImage = this.m_outputImage_flg.IsChecked.Value.ToString();
             Properties.Settings.Default.Save();
         }
 
