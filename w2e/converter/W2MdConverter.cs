@@ -80,6 +80,9 @@ namespace w2e.converter
                     /* MarkDownWriterのインスタンスを生成 */
                     var md = new MarkDownWriter();
 
+                    /* 現在の章番号を初期化(画像ファイルのファイル名に使用する) */
+                    string currentNum = string.Empty;
+
                     /* 現在のファイル情報を初期化 */
                     string fileName = TOP_FILE_NAME;
                     string filePath = Path.Combine( a_outputDir, fileName );
@@ -127,28 +130,9 @@ namespace w2e.converter
                             {
                                 int levelValue = level ?? 0;
                                 num = engine.Generate( numberingMap[numId.Value], levelValue );
-                            }
 
-                            /* Wordファイル「画像」の処理 */
-                            if( a_outputImage_flg )
-                            {
-                                List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, para );
-
-                                foreach( WordImageData imageData in imageList )
-                                {
-                                    string imageFileName = m_imageFileNameGenerator.CreateFileName( num, imageData.contentType );
-                                    string imageDirectory = Path.Combine( a_outputDir, "images" );
-
-                                    if( !Directory.Exists( imageDirectory ) )
-                                    {
-                                        Directory.CreateDirectory( imageDirectory );
-                                    }
-
-                                    string imagePath = Path.Combine( imageDirectory, imageFileName );
-                                    File.WriteAllBytes( imagePath, imageData.imageData );
-
-                                    md.AddLine( "![](images/" + imageFileName + ")" );
-                                }
+                                /* 現在の章番号を更新(同じ章の画像ファイルのファイル名に使用する) */
+                                currentNum = num;
                             }
 
                             /* 章番号を取得した場合は新規ファイルを作成する */
@@ -163,6 +147,28 @@ namespace w2e.converter
 
                                 /* ログにファイル名を表示 */
                                 onLogUpdate( fileName );
+                            }
+
+                            /* Wordファイル「画像」の処理 */
+                            if( a_outputImage_flg )
+                            {
+                                List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, para );
+
+                                foreach( WordImageData imageData in imageList )
+                                {
+                                    string imageFileName = m_imageFileNameGenerator.CreateFileName( currentNum, imageData.contentType );
+                                    string imageDirectory = Path.Combine( a_outputDir, "images" );
+
+                                    if( !Directory.Exists( imageDirectory ) )
+                                    {
+                                        Directory.CreateDirectory( imageDirectory );
+                                    }
+
+                                    string imagePath = Path.Combine( imageDirectory, imageFileName );
+                                    File.WriteAllBytes( imagePath, imageData.imageData );
+
+                                    md.AddLine( "![" + imageFileName + "](images/" + imageFileName + ")" );
+                                }
                             }
 
                             /* 行出力 */

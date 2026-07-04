@@ -49,7 +49,7 @@ namespace w2e.word
             string extension = GetExtension( a_contentType );
 
             /* ファイル名生成 */
-            string fileName = "image_" + normalizedHeadingNumber + "_" + index.ToString( "0000" ) + extension;
+            string fileName = normalizedHeadingNumber + "_image_" + index.ToString( "0000" ) + extension;
 
             return fileName;
         }
