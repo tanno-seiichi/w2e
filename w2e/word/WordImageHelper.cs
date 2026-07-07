@@ -34,6 +34,24 @@ namespace w2e.word
                 throw new ArgumentNullException( nameof( a_paragraph ) );
             }
 
+            /* Drawing画像を取得する */
+            GetDrawingImages( a_mainDocumentPart, a_paragraph, imageList );
+
+            /* VML画像を取得する（旧.doc形式の画像保持方式に対応） */
+            GetVmlImages( a_mainDocumentPart, a_paragraph, imageList );
+
+            return imageList;
+        }
+
+
+        /// <summary>
+        /// 指定した段落内に存在するDrawing画像を取得する。
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart</param>
+        /// <param name="a_paragraph">対象段落</param>
+        /// <param name="a_imageList">画像情報一覧</param>
+        private static void GetDrawingImages( MainDocumentPart a_mainDocumentPart, Word.Paragraph a_paragraph, List<WordImageData> a_imageList )
+        {
             /* 段落内の画像を順番に取得する */
             IEnumerable<Word.Drawing> drawingList = a_paragraph.Descendants<Word.Drawing>();
 
@@ -58,11 +76,44 @@ namespace w2e.word
 
                 if( null != imageData )
                 {
-                    imageList.Add( imageData );
+                    a_imageList.Add( imageData );
                 }
             }
+        }
 
-            return imageList;
+
+        /// <summary>
+        /// 指定した段落内に存在するVML画像を取得する。
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart</param>
+        /// <param name="a_paragraph">対象段落</param>
+        /// <param name="a_imageList">画像情報一覧</param>
+        private static void GetVmlImages( MainDocumentPart a_mainDocumentPart, Word.Paragraph a_paragraph, List<WordImageData> a_imageList )
+        {
+            /* 段落内の画像を順番に取得する */
+            IEnumerable<DocumentFormat.OpenXml.Vml.ImageData> imageDataList = a_paragraph.Descendants<DocumentFormat.OpenXml.Vml.ImageData>();
+
+            foreach( DocumentFormat.OpenXml.Vml.ImageData imageData in imageDataList )
+            {
+                if( null == imageData.RelationshipId )
+                {
+                    continue;
+                }
+
+                ImagePart imagePart = a_mainDocumentPart.GetPartById( imageData.RelationshipId ) as ImagePart;
+
+                if( null == imagePart )
+                {
+                    continue;
+                }
+
+                WordImageData wordImageData = CreateImageData( imagePart, imageData.RelationshipId );
+
+                if( null != wordImageData )
+                {
+                    a_imageList.Add( wordImageData );
+                }
+            }
         }
 
 
@@ -89,6 +140,22 @@ namespace w2e.word
             result.relationshipId = a_relationshipId;
 
             /* 画像サイズ・AltTextは後続コミットで設定する */
+            return result;
+        }
+
+
+        private static WordImageData CreateImageData( ImagePart a_imagePart, string a_relationshipId )
+        {
+            byte[] imageData = GetImageData( a_imagePart );
+
+            string contentType = GetContentType( a_imagePart );
+
+            WordImageData result = new WordImageData();
+
+            result.imageData = imageData;
+            result.contentType = contentType;
+            result.relationshipId = a_relationshipId;
+
             return result;
         }
 
