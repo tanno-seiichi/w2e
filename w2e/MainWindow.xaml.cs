@@ -90,7 +90,14 @@ namespace w2e
         /// <param name="a_args">イベントデータ</param>
         private void BtnOpenFileClick( object a_sender, RoutedEventArgs a_args )
         {
-            var openFileDialog = new OpenFileDialog();
+            var openFileDialog = new OpenFileDialog
+            {
+                Filter = "Word文書 (*.docx)|*.docx|すべてのファイル (*.*)|*.*",
+                FilterIndex = 1,
+                DefaultExt = ".docx"
+
+            };
+
             if( openFileDialog.ShowDialog().Value )
             {
                 this.m_wordPath.Text  = openFileDialog.FileName;
