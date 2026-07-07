@@ -20,7 +20,8 @@ namespace w2e.word
         public enum NumberingTypeEn
         {
             NONE,
-            HEADING
+            HEADING,    /* 見出し */
+            LIST        /* 箇条書き */
         }
 
         /// <summary>
@@ -47,6 +48,9 @@ namespace w2e.word
             /* スタイル名を取得 */
             string styleName = style?.StyleName?.Val?.Value;
 
+            /* 段落の番号情報を取得 */
+            NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
+]
             /* 見出しスタイルか判定
              * 箇条書きの番号を章番号として誤検出しないため、
              * heading 系スタイルのみ章番号対象とする
@@ -55,7 +59,19 @@ namespace w2e.word
                                     styleName.StartsWith( "heading", StringComparison.OrdinalIgnoreCase );
             if( !isHeadingStyle_flg )
             {
-                /* 見出しスタイルでない場合は空の番号情報を返す */
+                /* 見出しスタイルでない場合 */
+
+                if( null != numPr )
+                {
+                    /* 見出しスタイルでないが段落の番号情報がある場合 */
+                    return (
+                        (int?)numPr.NumberingId?.Val?.Value,
+                        (int?)numPr.NumberingLevelReference?.Val?.Value,
+                        NumberingTypeEn.LIST
+                    );
+                }
+
+                /* 見出しスタイルも段落の番号情報もない場合は空の番号情報を返す */
                 return ( null, null, NumberingTypeEn.NONE );
             }
 
@@ -67,7 +83,6 @@ namespace w2e.word
              */
 
             /* 1. 段落に番号情報が設定されていた場合はその番号情報を返す */
-            NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
             if( null != numPr )
             {
                 return (
