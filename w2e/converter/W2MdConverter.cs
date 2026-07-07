@@ -121,6 +121,7 @@ namespace w2e.converter
                             string num = "";
 
                             bool isHeading_flg = WordHelper.NumberingTypeEn.HEADING == numberingType;
+                            bool isList_flg = WordHelper.NumberingTypeEn.LIST == numberingType;
 
                             /* 有効な番号付情報と章タイトルの組合せを検出したら章番号を設定する */
                             if( isHeading_flg &&
@@ -172,7 +173,18 @@ namespace w2e.converter
                             }
 
                             /* 行出力 */
-                            md.AddLine( $"{num} {text}".Trim() );
+                            if( isList_flg )
+                            {
+                                /* 箇条書きの場合 */
+                                int indent = (level ?? 0) * 2;
+                                md.AddLine( new string( ' ', indent ) + "- " + text );
+                            }
+                            else
+                            {
+                                /* 見出しまたは通常の行の場合 */
+                                md.AddLine( $"{num} {text}".Trim() );
+                            }
+
                             md.AddLine( "" );
                             continue;
                         }
