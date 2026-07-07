@@ -50,7 +50,7 @@ namespace w2e.word
 
             /* 段落の番号情報を取得 */
             NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
-]
+
             /* 見出しスタイルか判定
              * 箇条書きの番号を章番号として誤検出しないため、
              * heading 系スタイルのみ章番号対象とする
