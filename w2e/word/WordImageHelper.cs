@@ -132,12 +132,21 @@ namespace w2e.word
             /* コンテンツタイプを取得する */
             string contentType = GetContentType( a_imagePart );
 
+            /* 画像サイズを取得する（EMU単位） */
+            GetImageSize( a_drawing, out long widthEmu, out long heightEmu );
+
+            /* AltTextを取得する */
+            string altText = GetAltText( a_drawing );
+
             /* 画像情報を生成する */
             WordImageData result = new WordImageData();
 
             result.imageData = imageData;
             result.contentType = contentType;
             result.relationshipId = a_relationshipId;
+            result.widthEmu = widthEmu;
+            result.heightEmu = heightEmu;
+            result.altText = altText;
 
             /* 画像サイズ・AltTextは後続コミットで設定する */
             return result;

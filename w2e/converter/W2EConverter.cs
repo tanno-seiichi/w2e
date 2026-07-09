@@ -38,6 +38,11 @@ namespace w2e.converter
         /// 先頭シートのシート名
         /// </summary>
         private const string TOP_SHEET_NAME = "トップ";
+
+        /// <summary>
+        /// 画像を配置する列番号 (0始まり。番号列,テキスト列と重ならない列に配置する)
+        /// </summary>
+        private const int IMAGE_COLUMN_INDEX = 2;
         
         /// <summary>
         /// 進捗情報が更新された時の処理
@@ -95,6 +100,10 @@ namespace w2e.converter
                         uint sheetId = 1;
                         int row = 1;
 
+                        /* 画像貼付用のDrawingsPartと画像ID（シートが切り替わるたびに初期化する） */
+                        DrawingsPart drawingsPart = null;
+                        uint imageId = 1;
+
                         int total = body.Elements().Count();
                         int current = 0;
 
@@ -144,6 +153,10 @@ namespace w2e.converter
                                     /* 先頭シートを追加 */
                                     wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, sheetName, sheetId++, out sheetData );
 
+                                    /* シートを新規作成したので画像貼付用の状態を初期化する */
+                                    drawingsPart = null;
+                                    imageId = 1;
+
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
                                 }
@@ -155,11 +168,28 @@ namespace w2e.converter
                                     sheetName = ExcelHelper.SafeSheetName( numData.text + " " + textData.text );
                                     wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, sheetName, sheetId++, out sheetData );
 
+                                    /* シートを新規作成したので画像貼付用の状態を初期化する */
+                                    drawingsPart = null;
+                                    imageId = 1;
+
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
 
                                     /* シートが変わったので行を先頭に戻す */
                                     row = 1;
+                                }
+
+                                /* Wordファイル「画像」の処理 */
+                                if( a_outputImage_flg )
+                                {
+                                    List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, para );
+
+                                    foreach( WordImageData imageData in imageList )
+                                    {
+                                        /* 画像を貼付け、画像の高さ分の行を確保する（0始まりの行番号を渡す） */
+                                        int usedRows = ExcelHelper.AddImage( wsPart, ref drawingsPart, ref imageId, imageData, row - 1, IMAGE_COLUMN_INDEX );
+                                        row += usedRows;
+                                    }
                                 }
 
                                 /* 行出力 */
@@ -178,6 +208,10 @@ namespace w2e.converter
 
                                     /* 先頭シートを追加 */
                                     wsPart = ExcelHelper.CreateWorksheet( wbPart, sheets, sheetName, sheetId++, out sheetData );
+
+                                    /* シートを新規作成したので画像貼付用の状態を初期化する */
+                                    drawingsPart = null;
+                                    imageId = 1;
 
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
