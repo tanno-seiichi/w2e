@@ -134,6 +134,7 @@ namespace w2e.converter
                                 CellData numData = new CellData() { text = "" };
 
                                 bool isHeading_flg = WordHelper.NumberingTypeEn.HEADING == numberingType;
+                                bool isList_flg = WordHelper.NumberingTypeEn.LIST == numberingType;
 
                                 /* 有効な番号付情報と章タイトルの組合せを検出したら章番号を設定する */
                                 if( isHeading_flg &&
@@ -193,7 +194,20 @@ namespace w2e.converter
                                 }
 
                                 /* 行出力 */
-                                ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { numData, textData }, cache );
+                                if( isList_flg )
+                                {
+                                    /* 箇条書きの場合 */
+                                    CellData indent = new CellData();
+                                    textData.text = "・ " + textData.text;
+                                    ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { numData, indent, textData }, cache );
+                                }
+                                else
+                                {
+                                    /* 見出しまたは通常の行の場合 */
+                                    ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { numData, textData }, cache );
+                                }
+
+
                                 continue;
                             }
 
