@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:w2e"
         mc:Ignorable="d"
         Title="" Height="164" Width="560" MinHeight="164" WindowStartupLocation="CenterScreen"
+        Icon="image/w2e.ico"
         ResizeMode="CanResizeWithGrip"
         Loaded="WindowLoaded"
         Closed="WindowClosed">
