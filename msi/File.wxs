@@ -26,7 +26,12 @@
 		<Component Id="License">
 			<File Source="LICENSE.txt" />
 		</Component>
-		
+
+		<!-- Third Party Notices -->
+		<Component Id="ThirdPartyNotices">
+			<File Source="THIRD-PARTY-NOTICES.txt" />
+		</Component>
+
 		<!-- スタートメニューショートカット -->
 		<Component Id="StartMenuShortcutComponent" Directory="ProgramMenuDir" Guid="*">
 			<Shortcut Id="StartMenuShortcut" Name="w2e" Target="[INSTALLFOLDER]w2e.exe" WorkingDirectory="INSTALLFOLDER" >

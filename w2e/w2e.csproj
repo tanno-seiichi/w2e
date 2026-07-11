@@ -14,6 +14,7 @@
     <WarningLevel>4</WarningLevel>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <ApplicationIcon>image\w2e.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -69,11 +70,14 @@
     <Compile Include="excel\ExcelHelper.cs" />
     <Compile Include="file\FileCopy.cs" />
     <Compile Include="markdown\MarkDownWriter.cs" />
+    <Compile Include="word\ImageFileNameGenerator.cs" />
+    <Compile Include="word\WordImageData.cs" />
     <Compile Include="word\LevelDefinition.cs" />
     <Compile Include="word\NumberingDefinition.cs" />
     <Compile Include="word\NumberingEngine.cs" />
     <Compile Include="converter\W2EConverter.cs" />
     <Compile Include="word\WordHelper.cs" />
+    <Compile Include="word\WordImageHelper.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -113,6 +117,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="image\w2e.ico" />
+    <Resource Include="image\w2e.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -1,6 +1,19 @@
-MIT License
+w2e
+Third-Party Notices
 
-Copyright (c) 2026 tanno-seiichi
+This application includes third-party software components.
+The copyright notices and license terms are listed below.
+
+======================================================================
+Open XML SDK
+(includes DocumentFormat.OpenXml and DocumentFormat.OpenXml.Framework)
+======================================================================
+
+Copyright (c) Microsoft Corporation
+
+Licensed under the MIT License.
+
+MIT License
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

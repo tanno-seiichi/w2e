@@ -54,6 +54,8 @@ namespace w2e
             this.m_wordPath.Text = Properties.Settings.Default.wordPath;
             this.m_markDown.IsChecked = ( this.m_markDown.Content.ToString() == Properties.Settings.Default.output );
             this.m_excel.IsChecked = !this.m_markDown.IsChecked.Value;
+            this.m_outputImage_flg.IsChecked = ( "true" == Properties.Settings.Default.outputImage.ToLower() );
+            this.m_outputListNumber_flg.IsChecked = ( "true" == Properties.Settings.Default.outputListNumber.ToLower() );
             this.EnableBtnConvert();
         }
 
@@ -74,6 +76,8 @@ namespace w2e
             /* 終了時の設定値を保存する */
             Properties.Settings.Default.wordPath = this.m_wordPath.Text;
             Properties.Settings.Default.output = ( this.m_excel.IsChecked.Value ) ? this.m_excel.Content.ToString() : this.m_markDown.Content.ToString();
+            Properties.Settings.Default.outputImage = this.m_outputImage_flg.IsChecked.Value.ToString();
+            Properties.Settings.Default.outputListNumber = this.m_outputListNumber_flg.IsChecked.Value.ToString();
             Properties.Settings.Default.Save();
         }
 
@@ -88,7 +92,14 @@ namespace w2e
         /// <param name="a_args">イベントデータ</param>
         private void BtnOpenFileClick( object a_sender, RoutedEventArgs a_args )
         {
-            var openFileDialog = new OpenFileDialog();
+            var openFileDialog = new OpenFileDialog
+            {
+                Filter = "Word文書 (*.docx)|*.docx|すべてのファイル (*.*)|*.*",
+                FilterIndex = 1,
+                DefaultExt = ".docx"
+
+            };
+
             if( openFileDialog.ShowDialog().Value )
             {
                 this.m_wordPath.Text  = openFileDialog.FileName;
@@ -113,11 +124,33 @@ namespace w2e
 
 
         /// <summary>
-        /// 出力フォーマット切時の処理
+        /// 出力フォーマット切替時の処理
         /// </summary>
         /// <param name="a_sender">イベント発生元オブジェクト</param>
         /// <param name="a_args">イベントデータ</param>
         private void RadioBtnOutputChecked( object a_sender, RoutedEventArgs a_args )
+        {
+            this.UpdateProgressBar( 0 );
+        }
+
+
+        /// <summary>
+        /// 画像を表示有無の切替時の処理
+        /// </summary>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
+        private void CheckBoxImageClicked( object a_sender, RoutedEventArgs a_args )
+        {
+            this.UpdateProgressBar( 0 );
+        }
+
+
+        /// <summary>
+        /// 箇条書き番号使用有無の切替時の処理
+        /// </summary>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
+        private void CheckBoxListNumberClicked( object a_sender, RoutedEventArgs a_args )
         {
             this.UpdateProgressBar( 0 );
         }
@@ -145,6 +178,8 @@ namespace w2e
                     Path.GetFileNameWithoutExtension( wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) + ".xlsx" );
             string mdDir = Path.Combine(
                     Path.GetDirectoryName( wordPath), Path.GetFileName( wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) );
+            bool outputImage_flg = this.m_outputImage_flg.IsChecked.Value;
+            bool outputListNumber_flg = this.m_outputListNumber_flg.IsChecked.Value;
 
             /* ログ表示エリアを初期化 */
             this.m_log.Clear();
@@ -167,7 +202,7 @@ namespace w2e
                         m_converter.onLogUpdate = this.UpdateLog;
 
                         /* 変換開始 */
-                        m_converter.Convert( wordPath, excelPath, this.m_cts.Token );
+                        m_converter.Convert( wordPath, excelPath, outputImage_flg, outputListNumber_flg, this.m_cts.Token );
                     }
                     else
                     {
@@ -180,7 +215,7 @@ namespace w2e
 
                         /* 変換開始 */
                         Directory.CreateDirectory( mdDir );
-                        m_converter.Convert( wordPath, mdDir, this.m_cts.Token );
+                        m_converter.Convert( wordPath, mdDir, outputImage_flg, outputListNumber_flg, this.m_cts.Token );
                     }
 
                     if( m_cts.Token.IsCancellationRequested )

@@ -1,7 +1,11 @@
 ﻿using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using w2e.word;
+using A = DocumentFormat.OpenXml.Drawing;
+using Xdr = DocumentFormat.OpenXml.Drawing.Spreadsheet;
 
 namespace w2e.excel
 {
@@ -137,6 +141,136 @@ namespace w2e.excel
 
 
         /// <summary>
+        /// 画像サイズが不明な場合に使用する既定の幅（EMU）
+        /// </summary>
+        private const long DEFAULT_IMAGE_WIDTH_EMU = 3048000;
+
+        /// <summary>
+        /// 画像サイズが不明な場合に使用する既定の高さ（EMU）
+        /// </summary>
+        private const long DEFAULT_IMAGE_HEIGHT_EMU = 2286000;
+
+        /// <summary>
+        /// Excelの既定の行の高さ（EMU）画像が占有する行数の算出に使用する
+        /// </summary>
+        private const long DEFAULT_ROW_HEIGHT_EMU = 190500;
+
+
+        /// <summary>
+        /// Excelワークシートに画像を挿入する
+        /// </summary>
+        /// <remarks>
+        /// ワークシートに対する最初の呼び出し時に DrawingsPart を生成し、
+        /// 以降の呼び出しでは同じ DrawingsPart に画像を追加していく
+        /// シートが切り替わった場合は呼び出し元で a_drawingsPart / a_imageId を初期化すること
+        /// </remarks>
+        /// <param name="a_wsPart">画像を挿入する対象のワークシート</param>
+        /// <param name="a_drawingsPart">ワークシートに紐づくDrawingsPart（未生成の場合はnullを渡し、このメソッドが生成する）</param>
+        /// <param name="a_imageId">画像に割り当てる一意なID（呼び出す度に採番され更新される）</param>
+        /// <param name="a_image">挿入する画像情報</param>
+        /// <param name="a_rowIndex">画像を配置する行番号（0始まり）</param>
+        /// <param name="a_colIndex">画像を配置する列番号（0始まり）</param>
+        /// <returns>画像の高さから算出した、確保すべき行数</returns>
+        public static int AddImage( WorksheetPart a_wsPart, ref DrawingsPart a_drawingsPart, ref uint a_imageId, WordImageData a_image, int a_rowIndex, int a_colIndex )
+        {
+            /* 引数チェック */
+            if( null == a_wsPart ||
+                null == a_image ||
+                null == a_image.imageData ||
+                0 == a_image.imageData.Length )
+            {
+                return 0;
+            }
+
+            /* DrawingsPartが未生成の場合は生成し、ワークシートに関連付ける */
+            if( null == a_drawingsPart )
+            {
+                a_drawingsPart = a_wsPart.AddNewPart<DrawingsPart>();
+                a_drawingsPart.WorksheetDrawing = new Xdr.WorksheetDrawing();
+
+                a_wsPart.Worksheet.Append( new Drawing() { Id = a_wsPart.GetIdOfPart( a_drawingsPart ) } );
+            }
+
+            /* 画像パートを追加し、画像データを書込む */
+            PartTypeInfo imagePartType = GetImagePartType( a_image.contentType );
+            ImagePart imagePart = a_drawingsPart.AddImagePart( imagePartType );
+            using( System.IO.MemoryStream stream = new System.IO.MemoryStream( a_image.imageData ) )
+            {
+                imagePart.FeedData( stream );
+            }
+
+            /* 画像サイズを決定する（サイズ不明の場合は既定値を使用する） */
+            long widthEmu = ( 0 < a_image.widthEmu ) ? a_image.widthEmu : DEFAULT_IMAGE_WIDTH_EMU;
+            long heightEmu = ( 0 < a_image.heightEmu ) ? a_image.heightEmu : DEFAULT_IMAGE_HEIGHT_EMU;
+
+            uint id = a_imageId++;
+            string picName = "Picture " + id;
+            string altText = a_image.altText ?? "";
+
+            /* 画像の配置情報（アンカー）を生成する */
+            Xdr.OneCellAnchor anchor = new Xdr.OneCellAnchor(
+                new Xdr.FromMarker()
+                {
+                    ColumnId = new Xdr.ColumnId( a_colIndex.ToString() ),
+                    ColumnOffset = new Xdr.ColumnOffset( "0" ),
+                    RowId = new Xdr.RowId( a_rowIndex.ToString() ),
+                    RowOffset = new Xdr.RowOffset( "0" )
+                },
+                new Xdr.Extent() { Cx = widthEmu, Cy = heightEmu },
+                new Xdr.Picture(
+                    new Xdr.NonVisualPictureProperties(
+                        new Xdr.NonVisualDrawingProperties() { Id = id, Name = picName, Description = altText },
+                        new Xdr.NonVisualPictureDrawingProperties( new A.PictureLocks() { NoChangeAspect = true } )
+                    ),
+                    new Xdr.BlipFill(
+                        new A.Blip() { Embed = a_drawingsPart.GetIdOfPart( imagePart ) },
+                        new A.Stretch( new A.FillRectangle() )
+                    ),
+                    new Xdr.ShapeProperties(
+                        new A.Transform2D(
+                            new A.Offset() { X = 0, Y = 0 },
+                            new A.Extents() { Cx = widthEmu, Cy = heightEmu }
+                        ),
+                        new A.PresetGeometry( new A.AdjustValueList() ) { Preset = A.ShapeTypeValues.Rectangle }
+                    )
+                ),
+                new Xdr.ClientData()
+            );
+
+            a_drawingsPart.WorksheetDrawing.Append( anchor );
+
+            /* 画像の高さから、後続コンテンツと重ならないよう確保すべき行数を算出する（余白として1行加算） */
+            return (int)Math.Ceiling( (double)heightEmu / DEFAULT_ROW_HEIGHT_EMU ) + 1;
+        }
+
+
+        /// <summary>
+        /// 画像のコンテンツタイプから PartTypeInfo（画像パート種別）を判定する
+        /// </summary>
+        /// <param name="a_contentType">画像のコンテンツタイプ（例: "image/png"）</param>
+        /// <returns>対応する PartTypeInfo (判定できない場合は Png)</returns>
+        private static PartTypeInfo GetImagePartType( string a_contentType )
+        {
+            switch( ( a_contentType ?? "" ).ToLower() )
+            {
+                case "image/png":
+                    return ImagePartType.Png;
+                case "image/jpeg":
+                case "image/jpg":
+                    return ImagePartType.Jpeg;
+                case "image/gif":
+                    return ImagePartType.Gif;
+                case "image/bmp":
+                    return ImagePartType.Bmp;
+                case "image/tiff":
+                    return ImagePartType.Tiff;
+                default:
+                    return ImagePartType.Png;
+            }
+        }
+
+
+        /// <summary>
         /// Excelの列名を取得する
         /// </summary>
         /// <param name="a_index">列インデックス（例：1 = A、26 = Z、27 = AA）</param>
@@ -199,7 +333,7 @@ namespace w2e.excel
                 }
 
                 /* セルに枠線を設定 */
-                BorderHelper.ApplyBorder( a_wbPart, cell, data.topBorder, data.bottomBorder, data.leftBorder, data.rightBorder, a_cache );
+                BorderHelper.ApplyBorder( a_wbPart, cell, data.topBorder, data.bottomBorder, data.leftBorder, data.rightBorder, data.rightAlign, data.bold, a_cache );
 
                 row.Append( cell );
             }

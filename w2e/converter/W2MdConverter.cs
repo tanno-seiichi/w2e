@@ -39,6 +39,11 @@ namespace w2e.converter
         private const string TOP_FILE_NAME = "0 トップ.md";
 
         /// <summary>
+        /// 画像ファイル名を生成するオブジェクト
+        /// </summary>
+        private readonly ImageFileNameGenerator m_imageFileNameGenerator = new ImageFileNameGenerator();
+
+        /// <summary>
         /// 進捗情報が更新された時の処理
         /// </summary>
         public Delegates.UpdateProgressDelegate onProgressUpdate { get; set; }
@@ -54,8 +59,10 @@ namespace w2e.converter
         /// </summary>
         /// <param name="a_wordPath">Wordファイルのパス</param>
         /// <param name="a_outputDir">MarkDownファイルの出力先ディレクトリ</param>
+        /// <param name="a_outputImage_flg">画像を使用するか否か</param>
+        /// <param name="a_outputListNumber_flg">箇条書きに番号を使用するか否か。falseの場合は固定で「-」を使用する</param>
         /// <param name="a_token">処理中断通知</param>
-        public void Convert( string a_wordPath, string a_outputDir, CancellationToken a_token )
+        public void Convert( string a_wordPath, string a_outputDir, bool a_outputImage_flg, bool a_outputListNumber_flg, CancellationToken a_token )
         {
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
             string tempPath = FileCopy.CreateTempCopy(a_wordPath);
@@ -73,6 +80,9 @@ namespace w2e.converter
 
                     /* MarkDownWriterのインスタンスを生成 */
                     var md = new MarkDownWriter();
+
+                    /* 現在の章番号を初期化(画像ファイルのファイル名に使用する) */
+                    string currentNum = string.Empty;
 
                     /* 現在のファイル情報を初期化 */
                     string fileName = TOP_FILE_NAME;
@@ -112,6 +122,7 @@ namespace w2e.converter
                             string num = "";
 
                             bool isHeading_flg = WordHelper.NumberingTypeEn.HEADING == numberingType;
+                            bool isList_flg = WordHelper.NumberingTypeEn.LIST == numberingType;
 
                             /* 有効な番号付情報と章タイトルの組合せを検出したら章番号を設定する */
                             if( isHeading_flg &&
@@ -121,6 +132,30 @@ namespace w2e.converter
                             {
                                 int levelValue = level ?? 0;
                                 num = engine.Generate( numberingMap[numId.Value], levelValue );
+
+                                /* 現在の章番号を更新(同じ章の画像ファイルのファイル名に使用する) */
+                                currentNum = num;
+                            }
+
+                            /* 箇条書きの場合、Wordのレベルの書式に応じてMarkDown標準の記法を選択する
+                             * （記号（Bullet）の場合は "-"、それ以外（連番・丸数字・アルファベットなど）の場合は "1." とする）
+                             * 箇条書き番号が無効な場合は、書式に関わらず固定で "-" を使用する
+                             */
+                            string listMarkerFormat = "-";
+                            if( isList_flg &&
+                                a_outputListNumber_flg &&
+                                numId.HasValue &&
+                                numberingMap.ContainsKey( numId.Value ) )
+                            {
+                                int levelValue = level ?? 0;
+                                NumberingDefinition def = numberingMap[numId.Value];
+
+                                if( def.Levels.ContainsKey( levelValue ) &&
+                                    Word.NumberFormatValues.Bullet != def.Levels[levelValue].format )
+                                {
+                                    /* Bullet以外（Decimal, DecimalEnclosedCircle, LowerLetterなど）は連番として扱う */
+                                    listMarkerFormat = "1.";
+                                }
                             }
 
                             /* 章番号を取得した場合は新規ファイルを作成する */
@@ -137,8 +172,73 @@ namespace w2e.converter
                                 onLogUpdate( fileName );
                             }
 
-                            /* 行出力 */
-                            md.AddLine( $"{num} {text}".Trim() );
+                            /* Wordファイル「画像」の処理 */
+                            if( a_outputImage_flg )
+                            {
+                                List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, para );
+
+                                foreach( WordImageData imageData in imageList )
+                                {
+                                    string imageFileName = m_imageFileNameGenerator.CreateFileName( currentNum, imageData.contentType );
+                                    string imageDirectory = Path.Combine( a_outputDir, "images" );
+
+                                    if( !Directory.Exists( imageDirectory ) )
+                                    {
+                                        Directory.CreateDirectory( imageDirectory );
+                                    }
+
+                                    string imagePath = Path.Combine( imageDirectory, imageFileName );
+                                    File.WriteAllBytes( imagePath, imageData.imageData );
+
+                                    md.AddLine( "![" + imageFileName + "](images/" + imageFileName + ")" );
+                                }
+                            }
+
+                            /* 行出力（段落内改行(Shift+Enter)がある場合は複数行に分けて出力する） */
+                            string[] textLines = text.Split( new[] { "\r\n", "\n" }, StringSplitOptions.None );
+
+                            if( isList_flg )
+                            {
+                                /* 箇条書きの場合：MarkDown標準の記法（"-" または "1."）を使用する */
+                                int indent = (level ?? 0) * 2;
+                                string bulletPrefix = new string( ' ', indent ) + listMarkerFormat + " ";
+                                string continuationIndent = new string( ' ', bulletPrefix.Length );
+
+                                for( int i = 0; i < textLines.Length; i++ )
+                                {
+                                    /* 1行目は箇条書きの記号を付け、2行目以降は記号の位置に合わせてインデントする */
+                                    string prefix = ( 0 == i ) ? bulletPrefix : continuationIndent;
+
+                                    /* 最終行以外は、MarkDownの強制改行のため行末に半角スペースを2つ付与する */
+                                    bool hasMoreLines_flg = ( i < textLines.Length - 1 );
+                                    md.AddLine( prefix + textLines[i] + ( hasMoreLines_flg ? "  " : "" ) );
+                                }
+                            }
+                            else
+                            {
+                                /* 見出しまたは通常の行の場合 */
+
+                                /* 章番号が設定された行（見出し行）は、MarkDownの見出し記法（#、##、### など）を先頭に付与する */
+                                bool isHeadingRow_flg = !string.IsNullOrEmpty( num );
+                                string headingPrefix = "";
+                                if( isHeadingRow_flg )
+                                {
+                                    /* Wordの見出しレベルに応じて#の数を決める（MarkDownの見出しは最大6段階まで） */
+                                    int headingDepth = Math.Min( ( level ?? 0 ) + 1, 6 );
+                                    headingPrefix = new string( '#', headingDepth ) + " ";
+                                }
+
+                                for( int i = 0; i < textLines.Length; i++ )
+                                {
+                                    /* 1行目のみ章番号・見出し記法を付与する */
+                                    string line = ( 0 == i ) ? ( headingPrefix + $"{num} {textLines[i]}".Trim() ) : textLines[i];
+
+                                    /* 最終行以外は、MarkDownの強制改行のため行末に半角スペースを2つ付与する */
+                                    bool hasMoreLines_flg = ( i < textLines.Length - 1 );
+                                    md.AddLine( line + ( hasMoreLines_flg ? "  " : "" ) );
+                                }
+                            }
+
                             md.AddLine( "" );
                             continue;
                         }

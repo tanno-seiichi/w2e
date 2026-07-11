@@ -21,6 +21,11 @@ namespace w2e.markdown
         private string m_currentFile;
 
         /// <summary>
+        /// 直前に連続して追加した空行の数（3行以上連続しないようにするために使用する）
+        /// </summary>
+        private int m_consecutiveBlankLines = 0;
+
+        /// <summary>
         /// ファイル名の禁止文字を除去して返す
         /// </summary>
         /// <param name="a_name">禁止文字を除去する前のファイル名</param>
@@ -50,6 +55,9 @@ namespace w2e.markdown
 
             m_currentFile = a_filePath;
             m_sb.Clear();
+
+            /* 新規ファイルなので空行判定の状態を初期化する */
+            m_consecutiveBlankLines = 0;
         }
 
 
@@ -59,6 +67,23 @@ namespace w2e.markdown
         /// <param name="a_text">行に記述する文字列</param>
         public void AddLine( string a_text )
         {
+            bool isBlank = string.IsNullOrWhiteSpace( a_text );
+
+            if( isBlank )
+            {
+                /* 空行が3行以上連続しないようにする（2行までは許容する） */
+                if( 2 <= m_consecutiveBlankLines )
+                {
+                    return;
+                }
+
+                m_consecutiveBlankLines++;
+            }
+            else
+            {
+                m_consecutiveBlankLines = 0;
+            }
+
             m_sb.AppendLine( a_text );
         }
 
@@ -70,6 +95,7 @@ namespace w2e.markdown
         public void AddTableRow( params string[] a_cols )
         {
             m_sb.AppendLine( "| " + string.Join( " | ", a_cols ) + " |" );
+            m_consecutiveBlankLines = 0;
         }
 
 
@@ -80,6 +106,7 @@ namespace w2e.markdown
         public void AddTableSeparator( int a_colCount )
         {
             m_sb.AppendLine( "| " + string.Join( " | ", Enumerable.Repeat( "---", a_colCount ) ) + " |" );
+            m_consecutiveBlankLines = 0;
         }
 
 
