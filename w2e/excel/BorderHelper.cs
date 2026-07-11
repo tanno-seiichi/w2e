@@ -20,13 +20,12 @@ namespace w2e.excel
         /// <param name="a_bottom_flg">下罫線を引くかどうか</param>
         /// <param name="a_left_flg">左罫線を引くかどうか</param>
         /// <param name="a_right_flg">右罫線を引くかどうか</param>
-        /// <param name="a_wrapText_flg">セル内改行を正しく表示するため「折り返して全体を表示する」を強制的に有効にするかどうか</param>
         /// <param name="a_rightAlign_flg">セル内の文字列を右揃えで表示するかどうか（箇条書きの記号「・」の表示などに使用する）</param>
         /// <param name="a_bold_flg">セル内の文字列を太字（ボールド）で表示するかどうか（章番号の見出し行の表示に使用する）</param>
         /// <param name="a_cache">スタイルキャッシュ（キー：罫線条件、値：StyleIndex）</param>
         public static void ApplyBorder( WorkbookPart a_wbPart, Cell a_cell, 
                                                  bool a_top_flg, bool a_bottom_flg, bool a_left_flg, bool a_right_flg, 
-                                                 bool a_wrapText_flg, bool a_rightAlign_flg, bool a_bold_flg,
+                                                 bool a_rightAlign_flg, bool a_bold_flg,
                                                  Dictionary<string, uint> a_cache )
         {
             /* スタイルシートが初期化されていない場合は何もしないで返す */
@@ -56,13 +55,12 @@ namespace w2e.excel
 
             /* ================== キャッシュキーを生成 ================== */
 
-            /* 既存の元BorderIdと各辺のオンオフフラグ、折返し設定、右揃え設定、ボールド設定の組み合わせでキーを生成する */
+            /* 既存の元BorderIdと各辺のオンオフフラグ、右揃え設定、ボールド設定の組み合わせでキーを生成する */
             string key = baseBorderId.ToString() + "_" +
                  ( a_top_flg ? "1" : "0" ) +
                  ( a_bottom_flg ? "1" : "0" ) +
                  ( a_left_flg ? "1" : "0" ) +
                  ( a_right_flg ? "1" : "0" ) + "_" +
-                 ( a_wrapText_flg ? "1" : "0" ) +
                  ( a_rightAlign_flg ? "1" : "0" ) +
                  ( a_bold_flg ? "1" : "0" );
 
@@ -113,15 +111,15 @@ namespace w2e.excel
                     newFormat.ApplyFont = true;
                 }
 
-                /* 枠線が設定されたセル、セル内改行を含むセル、右揃え指定があるセルは
-                 * それぞれ必要な配置（折り返して全体を表示する／上詰め／右揃え）を有効にする
+                /* 枠線が設定されたセル、または右揃え指定があるセルは
+                 * それぞれ必要な配置（枠線ありは折り返して全体を表示する／上詰め、右揃え指定は右詰め）を有効にする
                  */
-                if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg || a_wrapText_flg || a_rightAlign_flg )
+                if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg || a_rightAlign_flg )
                 {
                     Alignment newAlignment = new Alignment();
 
-                    /* 枠線または改行を含むセルは「折り返して全体を表示する」と「上詰め」を有効にする */
-                    if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg || a_wrapText_flg )
+                    /* 枠線が設定されたセルは「折り返して全体を表示する」と「上詰め」を有効にする */
+                    if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg )
                     {
                         newAlignment.WrapText = true;
                         newAlignment.Vertical = VerticalAlignmentValues.Top;
