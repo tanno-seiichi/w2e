@@ -165,6 +165,7 @@ namespace w2e.word
              * ・フィールド（FieldChar / FieldCode）を解析
              * ・SEQフィールドおよびSTYLEREFフィールドを識別
              * ・SEQフィールドの連番表示時に必要な区切り文字（"-"）を補完
+             * ・段落内の改行（Shift+Enterによる改行）を改行コードに変換
              * 注意点：
              * ・フィールドコード自体は出力せず、表示結果のみを対象とします
              * ・複雑なフィールド構造（ネストなど）には完全対応していません
@@ -205,6 +206,14 @@ namespace w2e.word
                         /* 処理なし */
                     }
 
+                    continue;
+                }
+
+                /* 段落内の改行（Shift+Enterによる改行） */
+                Break br = element as Break;
+                if( null != br )
+                {
+                    sb.Append( Environment.NewLine );
                     continue;
                 }
 

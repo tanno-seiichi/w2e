@@ -30,5 +30,15 @@
         /// </summary>
         public bool rightBorder { get; set; } = false;
 
+        /// <summary>
+        /// セル内の文字列を右揃えで表示するかどうか（箇条書きの記号「・」の表示などに使用する）
+        /// </summary>
+        public bool rightAlign { get; set; } = false;
+
+        /// <summary>
+        /// セル内の文字列を太字（ボールド）で表示するかどうか（章番号の見出し行の表示に使用する）
+        /// </summary>
+        public bool bold { get; set; } = false;
+
     }
 }

@@ -20,9 +20,13 @@ namespace w2e.excel
         /// <param name="a_bottom_flg">下罫線を引くかどうか</param>
         /// <param name="a_left_flg">左罫線を引くかどうか</param>
         /// <param name="a_right_flg">右罫線を引くかどうか</param>
+        /// <param name="a_wrapText_flg">セル内改行を正しく表示するため「折り返して全体を表示する」を強制的に有効にするかどうか</param>
+        /// <param name="a_rightAlign_flg">セル内の文字列を右揃えで表示するかどうか（箇条書きの記号「・」の表示などに使用する）</param>
+        /// <param name="a_bold_flg">セル内の文字列を太字（ボールド）で表示するかどうか（章番号の見出し行の表示に使用する）</param>
         /// <param name="a_cache">スタイルキャッシュ（キー：罫線条件、値：StyleIndex）</param>
         public static void ApplyBorder( WorkbookPart a_wbPart, Cell a_cell, 
                                                  bool a_top_flg, bool a_bottom_flg, bool a_left_flg, bool a_right_flg, 
+                                                 bool a_wrapText_flg, bool a_rightAlign_flg, bool a_bold_flg,
                                                  Dictionary<string, uint> a_cache )
         {
             /* スタイルシートが初期化されていない場合は何もしないで返す */
@@ -52,12 +56,15 @@ namespace w2e.excel
 
             /* ================== キャッシュキーを生成 ================== */
 
-            /* 既存の元BorderIdと各辺のオンオフフラグの組み合わせでキーを生成する */
+            /* 既存の元BorderIdと各辺のオンオフフラグ、折返し設定、右揃え設定、ボールド設定の組み合わせでキーを生成する */
             string key = baseBorderId.ToString() + "_" +
                  ( a_top_flg ? "1" : "0" ) +
                  ( a_bottom_flg ? "1" : "0" ) +
                  ( a_left_flg ? "1" : "0" ) +
-                 ( a_right_flg ? "1" : "0" );
+                 ( a_right_flg ? "1" : "0" ) + "_" +
+                 ( a_wrapText_flg ? "1" : "0" ) +
+                 ( a_rightAlign_flg ? "1" : "0" ) +
+                 ( a_bold_flg ? "1" : "0" );
 
 
             /* スタイルのキーがキャッシュに存在しない場合は生成して登録する */
@@ -81,17 +88,52 @@ namespace w2e.excel
                 /* =============== CellFormat（セルの見た目定義）を作成 =============== */
 
                 CellFormat newFormat = new CellFormat();
-                newFormat.FontId = ( null != baseFormat.FontId ) ? baseFormat.FontId : newFormat.FontId;                                            /* フォント */
+                uint baseFontId = ( null != baseFormat.FontId ) ? baseFormat.FontId.Value : 0;
+
+                /* フォントIDの決定（uintとUInt32Valueが混在する三項演算子はC# 7.3ではエラーになるためif文で分岐する） */
+                if( a_bold_flg )
+                {
+                    newFormat.FontId = GetOrCreateHeadingFontId( styles, baseFontId );
+                }
+                else if( null != baseFormat.FontId )
+                {
+                    newFormat.FontId = baseFormat.FontId;
+                }
+                /* いずれにも該当しない場合はnewFormat.FontIdの既定値のままとする */
+
                 newFormat.FillId = ( null != baseFormat.FillId ) ? baseFormat.FillId : newFormat.FillId;                                            /* 塗りつぶし */
                 newFormat.NumberFormatId = ( null != baseFormat.NumberFormatId ) ? baseFormat.NumberFormatId : newFormat.NumberFormatId;            /* 数値書式 */
                 newFormat.Alignment = ( null != baseFormat.Alignment ) ? ( Alignment)baseFormat.Alignment.CloneNode( true ) : newFormat.Alignment;  /* 配置 */
                 newFormat.BorderId = newBorderId;                                                                                                   /* 罫線 */
                 newFormat.ApplyBorder = true;                                                                                                       /* 罫線適用フラグをON */
 
-                /* 枠線が設定されたセルの書式「折り返して全体を表示する」と「上詰め」を有効にする */
-                if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg )
+                /* フォント適用フラグ（ボールド時のみON。bool/BooleanValueが混在する三項演算子はC# 7.3ではエラーになるためif文で分岐する） */
+                if( a_bold_flg )
                 {
-                    newFormat.Alignment = new Alignment() { WrapText = true, Vertical = VerticalAlignmentValues.Top };
+                    newFormat.ApplyFont = true;
+                }
+
+                /* 枠線が設定されたセル、セル内改行を含むセル、右揃え指定があるセルは
+                 * それぞれ必要な配置（折り返して全体を表示する／上詰め／右揃え）を有効にする
+                 */
+                if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg || a_wrapText_flg || a_rightAlign_flg )
+                {
+                    Alignment newAlignment = new Alignment();
+
+                    /* 枠線または改行を含むセルは「折り返して全体を表示する」と「上詰め」を有効にする */
+                    if( a_top_flg || a_bottom_flg || a_left_flg || a_right_flg || a_wrapText_flg )
+                    {
+                        newAlignment.WrapText = true;
+                        newAlignment.Vertical = VerticalAlignmentValues.Top;
+                    }
+
+                    /* 右揃え指定があるセルは「右詰め」を有効にする（箇条書きの記号「・」の表示などに使用する） */
+                    if( a_rightAlign_flg )
+                    {
+                        newAlignment.Horizontal = HorizontalAlignmentValues.Right;
+                    }
+
+                    newFormat.Alignment = newAlignment;
                     newFormat.ApplyAlignment = true;
                 }
 
@@ -111,5 +153,97 @@ namespace w2e.excel
         }
 
 
+        /// <summary>
+        /// フォントサイズの標準的な選択肢一覧（Excelの「フォントサイズ」欄のドロップダウンと同じ並び）。
+        /// 「フォントサイズを大きくする」ボタンはこの一覧に沿ってサイズを変更するため、同じ動きを再現するために使用する。
+        /// </summary>
+        private static readonly double[] STANDARD_FONT_SIZES =
+        {
+            8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72, 96, 144
+        };
+
+        /// <summary>
+        /// フォントサイズが不明な場合に基準とする既定値（Excelの標準フォントサイズ）
+        /// </summary>
+        private const double DEFAULT_FONT_SIZE = 11.0;
+
+        /// <summary>
+        /// 何段階サイズアップするか（見出し行の表示に使用する。Excelの「フォントサイズを大きくする」ボタンを2回押した時と同じ動き）
+        /// </summary>
+        private const int HEADING_FONT_SIZE_STEPS = 2;
+
+
+        /// <summary>
+        /// 見出し用フォント（ボールド＋サイズアップ）のIDを取得する。
+        /// 既に同じ条件（ボールド・サイズ・フォント名）のフォントが登録済みの場合はそれを再利用し、無い場合は新規に作成する。
+        /// </summary>
+        /// <param name="a_styles">スタイルシート</param>
+        /// <param name="a_baseFontId">元になるセルのフォントID（フォント名・サイズの基準として使用する）</param>
+        /// <returns>見出し用フォントのFontId</returns>
+        private static uint GetOrCreateHeadingFontId( Stylesheet a_styles, uint a_baseFontId )
+        {
+            List<Font> fonts = a_styles.Fonts.Elements<Font>().ToList();
+
+            /* 基準となるフォント（サイズ・フォント名を引き継ぐ元）を取得する */
+            Font baseFont = ( a_baseFontId < fonts.Count ) ? fonts[(int)a_baseFontId] : null;
+
+            double baseSize = ( null != baseFont?.FontSize?.Val ) ? baseFont.FontSize.Val.Value : DEFAULT_FONT_SIZE;
+            string baseFontName = baseFont?.FontName?.Val?.Value;
+
+            /* Excelの「フォントサイズを大きくする」ボタンと同様に、標準サイズ一覧に沿って2段階分サイズを大きくする */
+            double targetSize = IncreaseFontSize( baseSize, HEADING_FONT_SIZE_STEPS );
+
+            /* 既に同じ条件（ボールド・対象サイズ・フォント名）のフォントが登録済であれば再利用する */
+            for( int i = 0; i < fonts.Count; i++ )
+            {
+                Font f = fonts[i];
+                bool isBold_flg = ( null != f.Bold );
+                bool isSameSize_flg = ( null != f.FontSize ) && ( f.FontSize.Val.Value == targetSize );
+                bool isSameName_flg = ( f.FontName?.Val?.Value == baseFontName );
+
+                if( isBold_flg && isSameSize_flg && isSameName_flg )
+                {
+                    return (uint)i;
+                }
+            }
+
+            /* 無い場合は新規に見出し用フォント（ボールド＋サイズアップ）を作成して追加する */
+            Font newFont = new Font();
+            newFont.Bold = new Bold();
+            newFont.FontSize = new FontSize() { Val = targetSize };
+
+            if( !string.IsNullOrEmpty( baseFontName ) )
+            {
+                /* 元のフォント名を引き継ぐ（未指定の場合はExcelの既定フォントに任せる） */
+                newFont.FontName = new FontName() { Val = baseFontName };
+            }
+
+            a_styles.Fonts.AppendChild( newFont );
+            uint newFontId = (uint)( a_styles.Fonts.Count() - 1 );
+            a_styles.Fonts.Count = (uint)a_styles.Fonts.Count();
+
+            return newFontId;
+        }
+
+
+        /// <summary>
+        /// 標準フォントサイズ一覧に沿って、指定した段階数分サイズを大きくする
+        /// </summary>
+        /// <param name="a_currentSize">現在のフォントサイズ</param>
+        /// <param name="a_steps">大きくする段階数</param>
+        /// <returns>変更後のフォントサイズ</returns>
+        private static double IncreaseFontSize( double a_currentSize, int a_steps )
+        {
+            /* 現在のサイズと同じか、それ以上で最も近いサイズのインデックスを探す */
+            int index = System.Array.FindIndex( STANDARD_FONT_SIZES, s => s >= a_currentSize );
+            if( 0 > index )
+            {
+                /* 一覧の最大値より大きい場合は最大値を基準にする */
+                index = STANDARD_FONT_SIZES.Length - 1;
+            }
+
+            int targetIndex = System.Math.Min( index + a_steps, STANDARD_FONT_SIZES.Length - 1 );
+            return STANDARD_FONT_SIZES[targetIndex];
+        }
     }
 }

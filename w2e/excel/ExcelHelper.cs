@@ -332,8 +332,9 @@ namespace w2e.excel
                     cell.CellValue = new CellValue( data.text ?? "" );
                 }
 
-                /* セルに枠線を設定 */
-                BorderHelper.ApplyBorder( a_wbPart, cell, data.topBorder, data.bottomBorder, data.leftBorder, data.rightBorder, a_cache );
+                /* セルに枠線を設定（セル内に改行が含まれる場合は折返し表示を強制する） */
+                bool wrapText_flg = !string.IsNullOrEmpty( data.text ) && ( data.text.Contains( "\n" ) || data.text.Contains( "\r" ) );
+                BorderHelper.ApplyBorder( a_wbPart, cell, data.topBorder, data.bottomBorder, data.leftBorder, data.rightBorder, wrapText_flg, data.rightAlign, data.bold, a_cache );
 
                 row.Append( cell );
             }

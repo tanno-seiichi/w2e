@@ -61,8 +61,9 @@ namespace w2e.converter
         /// <param name="a_wordPath">Wordファイルのパス</param>
         /// <param name="a_excelPath">Excelファイルのパス</param>
         /// <param name="a_outputImage_flg">画像を使用するか否か</param>
+        /// <param name="a_outputListNumber_flg">箇条書きに番号（Wordの実際の記号）を使用するか否か。falseの場合は固定で「・」を使用する</param>
         /// <param name="a_token">処理中断通知</param>
-        public void Convert( string a_wordPath, string a_excelPath, bool a_outputImage_flg, CancellationToken a_token )
+        public void Convert( string a_wordPath, string a_excelPath, bool a_outputImage_flg, bool a_outputListNumber_flg, CancellationToken a_token )
         {
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
             string tempPath = FileCopy.CreateTempCopy( a_wordPath );
@@ -103,6 +104,12 @@ namespace w2e.converter
                         /* 画像貼付用のDrawingsPartと画像ID（シートが切り替わるたびに初期化する） */
                         DrawingsPart drawingsPart = null;
                         uint imageId = 1;
+
+                        /* 空行が3行以上連続しないようにするための直前の連続空行数（シートが切り替わるたびに初期化する） */
+                        int consecutiveBlankRows = 0;
+
+                        /* 箇条書きの記号（①、a)、・ など）を生成するためのnumIdごとのカウンタ（文書全体で共有し、シートが切り替わっても初期化しない） */
+                        var listCounters = new Dictionary<int, Dictionary<int, int>>();
 
                         int total = body.Elements().Count();
                         int current = 0;
@@ -146,6 +153,33 @@ namespace w2e.converter
                                     numData.text = engine.Generate( numberingMap[numId.Value], levelValue );
                                 }
 
+                                /* 箇条書きの場合は、記号を生成する
+                                 * ・箇条書き番号が有効な場合：Wordの番号定義に基づいて実際の記号（①、a)、・ など）を生成する
+                                 * ・箇条書き番号が無効な場合：固定で「・」を使用する
+                                 */
+                                string listMarker = "";
+                                if( isList_flg &&
+                                    numId.HasValue &&
+                                    numberingMap.ContainsKey( numId.Value ) )
+                                {
+                                    if( a_outputListNumber_flg )
+                                    {
+                                        int levelValue = level.HasValue ? level.Value : 0;
+
+                                        /* このnumId専用のカウンタを用意する（章番号用のengineとは状態を共有しない） */
+                                        if( !listCounters.ContainsKey( numId.Value ) )
+                                        {
+                                            listCounters[numId.Value] = new Dictionary<int, int>();
+                                        }
+
+                                        listMarker = engine.GenerateListMarker( numberingMap[numId.Value], levelValue, listCounters[numId.Value] );
+                                    }
+                                    else
+                                    {
+                                        listMarker = "・";
+                                    }
+                                }
+
                                 /* シートが未登録の場合、または章番号を取得した場合は新規シートを追加する */
                                 if( null == wsPart )
                                 {
@@ -157,6 +191,9 @@ namespace w2e.converter
                                     /* シートを新規作成したので画像貼付用の状態を初期化する */
                                     drawingsPart = null;
                                     imageId = 1;
+
+                                    /* シートを新規作成したので空行判定の状態を初期化する */
+                                    consecutiveBlankRows = 0;
 
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
@@ -173,6 +210,9 @@ namespace w2e.converter
                                     drawingsPart = null;
                                     imageId = 1;
 
+                                    /* シートを新規作成したので空行判定の状態を初期化する */
+                                    consecutiveBlankRows = 0;
+
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
 
@@ -181,32 +221,75 @@ namespace w2e.converter
                                 }
 
                                 /* Wordファイル「画像」の処理 */
-                                if( a_outputImage_flg )
-                                {
-                                    List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, para );
+                                List<WordImageData> imageList = a_outputImage_flg
+                                    ? WordImageHelper.GetImages( doc.MainDocumentPart, para )
+                                    : new List<WordImageData>();
 
-                                    foreach( WordImageData imageData in imageList )
+                                foreach( WordImageData imageData in imageList )
+                                {
+                                    /* 画像を貼付け、画像の高さ分の行を確保する（0始まりの行番号を渡す） */
+                                    int usedRows = ExcelHelper.AddImage( wsPart, ref drawingsPart, ref imageId, imageData, row - 1, IMAGE_COLUMN_INDEX );
+                                    row += usedRows;
+                                }
+
+                                /* 章番号・テキスト・画像のいずれも無い行を「空行」とみなす */
+                                bool isBlankRow = string.IsNullOrEmpty( numData.text ) &&
+                                                   string.IsNullOrEmpty( textData.text ) &&
+                                                   0 == imageList.Count;
+
+                                /* 直前までの連続空行がすでに2行に達している場合は、3行以上連続しないようにこの行の出力をスキップする */
+                                if( isBlankRow && 2 <= consecutiveBlankRows )
+                                {
+                                    continue;
+                                }
+
+                                consecutiveBlankRows = isBlankRow ? consecutiveBlankRows + 1 : 0;
+
+                                /* 行出力（段落内改行(Shift+Enter)がある場合は、番号列を空白にして行を分けて出力する） */
+                                string[] textLines = textData.text.Split( new[] { "\r\n", "\n" }, StringSplitOptions.None );
+
+                                /* 箇条書きの記号が生成された場合は、記号列(B列)と内容列(C列)に分けて出力する */
+                                bool hasListMarker_flg = !string.IsNullOrEmpty( listMarker );
+
+                                /* 章番号が設定された行（見出し行）は、太字で表示する */
+                                bool isHeadingRow_flg = !string.IsNullOrEmpty( numData.text );
+
+                                for( int i = 0; i < textLines.Length; i++ )
+                                {
+                                    /* 2行目以降は番号列を空白にする */
+                                    CellData lineNumData = ( 0 == i ) ? numData : new CellData() { text = "" };
+                                    CellData lineTextData;
+                                    CellData lineContentData;
+
+                                    if( hasListMarker_flg )
                                     {
-                                        /* 画像を貼付け、画像の高さ分の行を確保する（0始まりの行番号を渡す） */
-                                        int usedRows = ExcelHelper.AddImage( wsPart, ref drawingsPart, ref imageId, imageData, row - 1, IMAGE_COLUMN_INDEX );
-                                        row += usedRows;
+                                        if( 0 == i )
+                                        {
+                                            /* 箇条書きの記号（①、a)、・ など）を右揃えでB列に、内容をC列に表示する */
+                                            lineTextData = new CellData() { text = listMarker, rightAlign = true };
+                                            lineContentData = new CellData() { text = textLines[i] };
+                                        }
+                                        else
+                                        {
+                                            /* 箇条書き項目内の改行による継続行：記号なしでC列にそのまま表示する */
+                                            lineTextData = new CellData() { text = "" };
+                                            lineContentData = new CellData() { text = textLines[i] };
+                                        }
                                     }
-                                }
+                                    else
+                                    {
+                                        /* 箇条書きでない通常の行 */
+                                        lineTextData = new CellData() { text = textLines[i] };
+                                        lineContentData = new CellData() { text = "" };
+                                    }
 
-                                /* 行出力 */
-                                if( isList_flg )
-                                {
-                                    /* 箇条書きの場合 */
-                                    CellData indent = new CellData();
-                                    textData.text = "・ " + textData.text;
-                                    ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { numData, indent, textData }, cache );
-                                }
-                                else
-                                {
-                                    /* 見出しまたは通常の行の場合 */
-                                    ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { numData, textData }, cache );
-                                }
+                                    /* 見出し行の場合は、行内のすべてのセルを太字にする */
+                                    lineNumData.bold = isHeadingRow_flg;
+                                    lineTextData.bold = isHeadingRow_flg;
+                                    lineContentData.bold = isHeadingRow_flg;
 
+                                    ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { lineNumData, lineTextData, lineContentData }, cache );
+                                }
 
                                 continue;
                             }
@@ -227,13 +310,18 @@ namespace w2e.converter
                                     drawingsPart = null;
                                     imageId = 1;
 
+                                    /* シートを新規作成したので空行判定の状態を初期化する */
+                                    consecutiveBlankRows = 0;
+
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
                                 }
 
                                 ConvertTable( wbPart, table, sheetData, ref row, cache );
 
+                                /* 表の後に区切りの空行を1行確保する（この行は空行として扱う） */
                                 row++;
+                                consecutiveBlankRows = 1;
                                 continue;
                             }
                         }
