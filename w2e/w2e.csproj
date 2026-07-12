@@ -121,5 +121,8 @@
   <ItemGroup>
     <Resource Include="image\w2e.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="image\w2e.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
