@@ -218,14 +218,13 @@ namespace w2e.converter
                             {
                                 /* 見出しまたは通常の行の場合 */
 
-                                /* 章番号が設定された行（見出し行）は、MarkDownの見出し記法（#、##、### など）を先頭に付与する */
+                                /* 章番号が設定された行（見出し行）は、MarkDownの見出し記法 "# " を先頭に付与する */
+                                /* このアプリでは章毎に別のファイルに書き出すので階層の深さに関係なく#の数を1つに固定しています */
                                 bool isHeadingRow_flg = !string.IsNullOrEmpty( num );
                                 string headingPrefix = "";
                                 if( isHeadingRow_flg )
                                 {
-                                    /* Wordの見出しレベルに応じて#の数を決める（MarkDownの見出しは最大6段階まで） */
-                                    int headingDepth = Math.Min( ( level ?? 0 ) + 1, 6 );
-                                    headingPrefix = new string( '#', headingDepth ) + " ";
+                                    headingPrefix = "# ";
                                 }
 
                                 for( int i = 0; i < textLines.Length; i++ )
