@@ -4,16 +4,16 @@ Third-Party Notices
 This application includes third-party software components.
 The copyright notices and license terms are listed below.
 
-======================================================================
-Open XML SDK
-(includes DocumentFormat.OpenXml and DocumentFormat.OpenXml.Framework)
-======================================================================
+=========================================================================
+Open-XML-SDK 
+ (includes DocumentFormat.OpenXml and DocumentFormat.OpenXml.Framework)
+=========================================================================
 
-Copyright (c) Microsoft Corporation
+﻿The MIT License (MIT)
 
-Licensed under the MIT License.
+Copyright (c) .NET Foundation and Contributors
 
-MIT License
+All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
