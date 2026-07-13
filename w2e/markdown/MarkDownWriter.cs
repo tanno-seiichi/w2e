@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -41,6 +42,9 @@ namespace w2e.markdown
 
             /* 全角スペースを除去 */
             a_name = a_name.Replace( "　", "" );
+
+            /* 改行コードを除去 */
+            a_name = a_name.Replace( Environment.NewLine, "" );
 
             return string.IsNullOrWhiteSpace( a_name ) ? "File" : a_name.Trim();
         }

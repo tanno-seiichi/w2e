@@ -59,6 +59,9 @@ namespace w2e.excel
             /* 全角スペースを除去 */
             a_name = a_name.Replace( "　", "" );
 
+            /* 改行コードを除去 */
+            a_name = a_name.Replace( Environment.NewLine, "" );
+
             /* Excelシート名の長さ制限チェック */
             if( 31 < a_name.Length )
             {
