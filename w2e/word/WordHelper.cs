@@ -213,7 +213,14 @@ namespace w2e.word
                 Break br = element as Break;
                 if( null != br )
                 {
-                    sb.Append( Environment.NewLine );
+                    if( null == br.Type )
+                    {
+                        sb.Append( Environment.NewLine );
+                    }
+                    else
+                    {
+                        Console.WriteLine( br.Type );
+                    }
                     continue;
                 }
 
