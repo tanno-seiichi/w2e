@@ -12,7 +12,7 @@ using System.Windows;
 [assembly: AssemblyConfiguration( "" )]
 [assembly: AssemblyCompany( "" )]
 [assembly: AssemblyProduct( "w2e" )]
-[assembly: AssemblyCopyright( "Copyright ©  2026" )]
+[assembly: AssemblyCopyright( "Copyright ©  2026 tanno-seiichi" )]
 [assembly: AssemblyTrademark( "" )]
 [assembly: AssemblyCulture( "" )]
 
@@ -48,5 +48,5 @@ using System.Windows;
 //      ビルド番号
 //      リビジョン
 //
-[assembly: AssemblyVersion( "1.10.0.0" )]
-[assembly: AssemblyFileVersion( "1.10.0.0" )]
+[assembly: AssemblyVersion( "1.11.0.0" )]
+[assembly: AssemblyFileVersion( "1.11.0.0" )]
