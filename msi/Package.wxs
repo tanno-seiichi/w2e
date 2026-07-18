@@ -3,7 +3,7 @@
   <Package
 	  Name="w2e"
 	  Manufacturer="tanno-seiichi"
-	  Version="1.11.0"
+	  Version="1.11.1"
 	  UpgradeCode="{A6C199CF-EF8C-474E-8AA2-FB83C94A07C1}"
 	  Scope="perMachine">
 	  
@@ -13,7 +13,7 @@
 	  <ui:WixUI Id="WixUI_Minimal" />
 	  <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
 
-    <Icon Id="ProductIcon" SourceFile="..\w2e\images\w2e.ico" />
+    <Icon Id="ProductIcon" SourceFile="..\w2e\image\w2e.ico" />
     <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
 
     <Feature Id="Main">
