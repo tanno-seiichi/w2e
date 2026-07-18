@@ -11,8 +11,11 @@
 		DowngradeErrorMessage="!(loc.DowngradeError)" />
 
 	  <ui:WixUI Id="WixUI_Minimal" />
-	  <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />	  
-	  
+	  <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+
+    <Icon Id="ProductIcon" SourceFile="..\w2e\images\w2e.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
+
     <Feature Id="Main">
       <ComponentGroupRef Id="w2e" />
     </Feature>
