@@ -84,6 +84,12 @@ namespace w2e.converter
                     /* 現在の章番号を初期化(画像ファイルのファイル名に使用する) */
                     string currentNum = string.Empty;
 
+                    /* 現在の章内で出現した見出しの階層スタック（章見出し自身を深さ1として、以降に出現した見出しの
+                     * 相対的な深さを「直前に出現した見出しとの関係」から決めるために使用する）
+                     * 各要素は (Word上のレベル, 割り当てた深さ) のペア
+                     */
+                    var headingStack = new List<(int Level, int Depth)>();
+
                     /* 現在のファイル情報を初期化 */
                     string fileName = TOP_FILE_NAME;
                     string filePath = Path.Combine( a_outputDir, fileName );
@@ -171,6 +177,12 @@ namespace w2e.converter
                                     {
                                         /* 現在の章番号を更新(同じ章の画像ファイルのファイル名に使用する) */
                                         currentNum = num;
+
+                                        /* 章見出し自身を深さ1として、階層スタックを初期化する
+                                         * （以降に出現する番号を持たない見出しの相対的な深さの基準にする）
+                                         */
+                                        headingStack.Clear();
+                                        headingStack.Add( ( level ?? 0, 1 ) );
                                     }
                                 }
                             }
@@ -256,13 +268,34 @@ namespace w2e.converter
                             {
                                 /* 見出しまたは通常の行の場合 */
 
-                                /* 章の見出しとして扱われた行は、MarkDownの見出し記法 "# " を先頭に付与する */
-                                /* このアプリでは章毎に別のファイルに書き出すので階層の深さに関係なく#の数を1つに固定しています */
-                                bool isHeadingRow_flg = isNewChapter_flg;
+                                /* 章番号を持つ見出し（新規ファイルの先頭行）は "#" 固定とする。
+                                 * 章番号を持たず、同じファイル内に統合される見出しは、
+                                 * 「直前に出現した見出しとの相対的な位置関係」から深さを決める（最大6段階）。
+                                 * Wordのアウトラインレベルの数値差ではなく、実際に出現した見出しの並びを基準にする。
+                                 */
                                 string headingPrefix = "";
-                                if( isHeadingRow_flg )
+                                if( isNewChapter_flg )
                                 {
                                     headingPrefix = "# ";
+                                }
+                                else if( isHeading_flg && !string.IsNullOrEmpty( text ) )
+                                {
+                                    int thisLevel = level ?? 0;
+
+                                    /* 現在の見出しと同じか、それより深い階層として扱っていた要素をスタックから取り除く */
+                                    while( 0 < headingStack.Count && thisLevel <= headingStack[headingStack.Count - 1].Level )
+                                    {
+                                        headingStack.RemoveAt( headingStack.Count - 1 );
+                                    }
+
+                                    /* 残った要素（直近の親にあたる見出し）の1つ下の深さとする */
+                                    int parentDepth = ( 0 < headingStack.Count ) ? headingStack[headingStack.Count - 1].Depth : 1;
+                                    int assignedDepth = parentDepth + 1;
+
+                                    headingStack.Add( ( thisLevel, assignedDepth ) );
+
+                                    int headingDepth = Math.Min( assignedDepth, 6 );
+                                    headingPrefix = new string( '#', headingDepth ) + " ";
                                 }
 
                                 for( int i = 0; i < textLines.Length; i++ )

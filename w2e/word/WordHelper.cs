@@ -87,14 +87,19 @@ namespace w2e.word
             /* 優先順位
              * 1. 段落に直接設定されている番号情報
              * 2. 段落スタイルに設定されている番号情報
+             *
+             * また、階層の深さ(level)は、numPrにレベル情報が無い場合はアウトラインレベルの値で補完する。
+             * これにより、Wordの番号付け機能（numPr）を使っていない見出し（スタイルのみで階層を表現している場合）
+             * でも、階層の深さを正しく取得できるようにする。
              */
+            int? outlineLevelValue = (int?)outlineLevel?.Val?.Value;
 
             /* 1. 段落に番号情報が設定されていた場合はその番号情報を返す */
             if( null != numPr )
             {
                 return (
                     (int?)numPr.NumberingId?.Val?.Value,
-                    (int?)numPr.NumberingLevelReference?.Val?.Value,
+                    (int?)numPr.NumberingLevelReference?.Val?.Value ?? outlineLevelValue,
                     NumberingTypeEn.HEADING
                 );
             }
@@ -103,7 +108,7 @@ namespace w2e.word
             NumberingProperties styleNumPr = style?.StyleParagraphProperties?.NumberingProperties;
             return (
                 (int?)styleNumPr?.NumberingId?.Val?.Value,
-                (int?)styleNumPr?.NumberingLevelReference?.Val?.Value,
+                (int?)styleNumPr?.NumberingLevelReference?.Val?.Value ?? outlineLevelValue,
                 NumberingTypeEn.HEADING
             );
         }
