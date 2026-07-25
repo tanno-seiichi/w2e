@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace w2e.word
 {
@@ -32,18 +33,13 @@ namespace w2e.word
         /// <returns>番号リストID, アウトラインレベル, 番号付け種別</returns>
         public static (int? numId, int? level, NumberingTypeEn numberingType) GetNumberingInfo( Paragraph a_pars, StyleDefinitionsPart a_stylePart )
         {
-            /* スタイルが設定されていない、または見出しスタイルでない場合は空の番号情報を返す */
-
-            /* 段落に設定されているスタイルIDを取得 */
+            /* 段落に設定されているスタイルIDを取得（無くても以降の判定は継続する） */
             string styleId = a_pars.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
-            if( null == styleId )
-            {
-                /* スタイルが設定されていない場合は空の番号情報を返す */
-                return ( null, null, NumberingTypeEn.NONE );
-            }
 
             /* スタイルIDに一致するスタイル定義を取得 */
-            Style style = a_stylePart?.Styles?.Elements<Style>().FirstOrDefault( s => s.StyleId == styleId );
+            Style style = string.IsNullOrEmpty( styleId )
+                ? null
+                : a_stylePart?.Styles?.Elements<Style>().FirstOrDefault( s => s.StyleId == styleId );
 
             /* スタイル名を取得 */
             string styleName = style?.StyleName?.Val?.Value;
@@ -51,12 +47,23 @@ namespace w2e.word
             /* 段落の番号情報を取得 */
             NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
 
-            /* 見出しスタイルか判定
+            /* 見出しスタイルか判定（スタイル名が "heading" で始まる場合）
              * 箇条書きの番号を章番号として誤検出しないため、
              * heading 系スタイルのみ章番号対象とする
              */
-            bool isHeadingStyle_flg = !string.IsNullOrEmpty( styleName ) &&
+            bool isHeadingStyleName_flg = !string.IsNullOrEmpty( styleName ) &&
                                     styleName.StartsWith( "heading", StringComparison.OrdinalIgnoreCase );
+
+            /* アウトラインレベル（Wordの「ナビゲーション」ウィンドウに見出しとして表示される階層情報）による判定。
+             * スタイル名が「heading」で始まらないカスタムスタイルでも、アウトラインレベルが
+             * 設定されていれば見出しとして扱う。段落自身の設定を優先し、無い場合はスタイルの設定を参照する。
+             * （w:outlineLvl は 0～8 が見出しレベル1～9に対応し、未設定または9以上は本文扱い）
+             */
+            OutlineLevel outlineLevel = a_pars.ParagraphProperties?.OutlineLevel ?? style?.StyleParagraphProperties?.OutlineLevel;
+            bool isHeadingOutline_flg = null != outlineLevel?.Val && outlineLevel.Val.Value <= 8;
+
+            bool isHeadingStyle_flg = isHeadingStyleName_flg || isHeadingOutline_flg;
+
             if( !isHeadingStyle_flg )
             {
                 /* 見出しスタイルでない場合 */
@@ -99,6 +106,71 @@ namespace w2e.word
                 (int?)styleNumPr?.NumberingLevelReference?.Val?.Value,
                 NumberingTypeEn.HEADING
             );
+        }
+
+
+        /// <summary>
+        /// 見出しテキストの先頭にある数字パターン（章番号）を検出する正規表現。
+        /// 例："3 導入" "4.1．概要" "10.2.3)タイトル" のような形式にマッチする。
+        /// </summary>
+        private static readonly Regex LEADING_NUMBER_REGEX = new Regex( @"^\s*(\d+(?:[.\-]\d+)*)[\.\)、]?\s*(.*)$", RegexOptions.Singleline );
+
+        /// <summary>
+        /// 見出しテキストの先頭から章番号らしき数字パターンを抽出する。
+        /// Wordの番号付け機能（numPr）を使わず、章番号を直接テキストとして入力している見出しに対応するための補助手段。
+        /// </summary>
+        /// <param name="a_text">見出しの表示テキスト</param>
+        /// <param name="a_number">抽出できた場合の章番号（例："3" "4.1"）</param>
+        /// <param name="a_title">章番号を除いた残りのタイトル文字列（前後の空白は除去済み）</param>
+        /// <returns>数字パターンを抽出できた場合はtrue</returns>
+        public static bool TryExtractLeadingNumber( string a_text, out string a_number, out string a_title )
+        {
+            a_number = null;
+            a_title = a_text ?? "";
+
+            if( string.IsNullOrEmpty( a_text ) )
+            {
+                return false;
+            }
+
+            Match m = LEADING_NUMBER_REGEX.Match( a_text );
+            if( !m.Success || 0 == m.Groups[1].Length )
+            {
+                return false;
+            }
+
+            a_number = m.Groups[1].Value;
+            a_title = m.Groups[2].Value.Trim();
+            return true;
+        }
+
+
+        /// <summary>
+        /// 指定したインデックス以降の要素から、最初に見つかった「空白でない段落」の表示テキストを取得する。
+        /// 見出し段落が番号のみ（またはタイトルが空）だった場合に、次の段落をタイトルとして補完するために使用する。
+        /// 段落以外の要素（表など）が現れた場合は、そこで探索を打ち切る。
+        /// </summary>
+        /// <param name="a_elements">走査対象の要素一覧（Word本文の子要素をリスト化したもの）</param>
+        /// <param name="a_startIndex">探索を開始するインデックス</param>
+        /// <returns>見つかった場合はその段落の表示テキスト（前後の空白は除去済み）。見つからない場合はnull</returns>
+        public static string FindNextNonBlankParagraphText( IReadOnlyList<OpenXmlElement> a_elements, int a_startIndex )
+        {
+            for( int i = a_startIndex; i < a_elements.Count; i++ )
+            {
+                if( !( a_elements[i] is Paragraph nextPara ) )
+                {
+                    /* 段落以外の要素（表など）が現れた場合はそこで探索を打ち切る */
+                    break;
+                }
+
+                string text = GetVisibleText( nextPara ).Trim();
+                if( !string.IsNullOrEmpty( text ) )
+                {
+                    return text;
+                }
+            }
+
+            return null;
         }
 
 

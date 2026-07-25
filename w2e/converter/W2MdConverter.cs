@@ -98,9 +98,14 @@ namespace w2e.converter
                     /* プログレスバーをWordファイル読込終了まで進める */
                     onProgressUpdate?.Invoke( PROGRESS_WORD_RANGE );
 
+                    /* Wordファイルの要素一覧（見出しのタイトル補完のため、次要素を先読みできるようリスト化する） */
+                    List<OpenXmlElement> elements = body.Elements().ToList();
+
                     /* Wordファイルの要素ごとに処理 */
-                    foreach( OpenXmlElement element in body.Elements() )
+                    for( int elementIndex = 0; elementIndex < elements.Count; elementIndex++ )
                     {
+                        OpenXmlElement element = elements[elementIndex];
+
                         /* 処理中断が要求されていたらループを抜ける */
                         if( a_token.IsCancellationRequested ) break;
 
@@ -124,17 +129,50 @@ namespace w2e.converter
                             bool isHeading_flg = WordHelper.NumberingTypeEn.HEADING == numberingType;
                             bool isList_flg = WordHelper.NumberingTypeEn.LIST == numberingType;
 
-                            /* 有効な番号付情報と章タイトルの組合せを検出したら章番号を設定する */
-                            if( isHeading_flg &&
-                                !string.IsNullOrEmpty( text ) &&
-                                numId.HasValue &&
-                                numberingMap.ContainsKey( numId.Value ) )
-                            {
-                                int levelValue = level ?? 0;
-                                num = engine.Generate( numberingMap[numId.Value], levelValue );
+                            /* この段落が新しい章の開始（新規ファイルを作るべき見出し）かどうか */
+                            bool isNewChapter_flg = false;
 
-                                /* 現在の章番号を更新(同じ章の画像ファイルのファイル名に使用する) */
-                                currentNum = num;
+                            if( isHeading_flg )
+                            {
+                                if( numId.HasValue && numberingMap.ContainsKey( numId.Value ) )
+                                {
+                                    /* Wordの番号定義（numPr）から章番号を取得できる場合 */
+                                    int levelValue = level ?? 0;
+                                    num = engine.Generate( numberingMap[numId.Value], levelValue );
+                                }
+                                else if( WordHelper.TryExtractLeadingNumber( text, out string extractedNum, out string extractedTitle ) )
+                                {
+                                    /* Wordの番号定義が無い場合は、見出しテキスト先頭の数字パターン（"3" "4.1"など）を章番号として代用する */
+                                    num = extractedNum;
+                                    text = extractedTitle;
+                                }
+
+                                /* ファイルを分割する条件はあくまで「章番号を取得できたかどうか」とする。
+                                 * （本文が空でアウトラインレベルだけ設定された見出しや、番号を伴わない見出しスタイルの段落まで
+                                 *   新しい章として分割してしまわないようにするため）
+                                 */
+                                if( !string.IsNullOrEmpty( num ) )
+                                {
+                                    /* 章番号は取得できたがタイトルが空の場合（見出しが章番号のみの場合）は、
+                                     * 次の空白でない段落をタイトルとして補完する
+                                     */
+                                    if( string.IsNullOrEmpty( text ) )
+                                    {
+                                        string fallbackTitle = WordHelper.FindNextNonBlankParagraphText( elements, elementIndex + 1 );
+                                        if( !string.IsNullOrEmpty( fallbackTitle ) )
+                                        {
+                                            text = fallbackTitle;
+                                        }
+                                    }
+
+                                    isNewChapter_flg = !string.IsNullOrEmpty( text );
+
+                                    if( isNewChapter_flg )
+                                    {
+                                        /* 現在の章番号を更新(同じ章の画像ファイルのファイル名に使用する) */
+                                        currentNum = num;
+                                    }
+                                }
                             }
 
                             /* 箇条書きの場合、Wordのレベルの書式に応じてMarkDown標準の記法を選択する
@@ -159,12 +197,12 @@ namespace w2e.converter
                             }
 
                             /* 章番号を取得した場合は新規ファイルを作成する */
-                            if( !string.IsNullOrEmpty( num ) )
+                            if( isNewChapter_flg )
                             {
                                 /* 章番号を取得した場合 */
 
                                 /* 章番号 章タイトル のファイルを追加 */
-                                fileName = MarkDownWriter.SafeFileName( num + " " + text ) + ".md";
+                                fileName = MarkDownWriter.SafeFileName( ( num + " " + text ).Trim() ) + ".md";
                                 filePath = Path.Combine( a_outputDir, fileName );
                                 md.NewFile( filePath );
 
@@ -218,9 +256,9 @@ namespace w2e.converter
                             {
                                 /* 見出しまたは通常の行の場合 */
 
-                                /* 章番号が設定された行（見出し行）は、MarkDownの見出し記法 "# " を先頭に付与する */
+                                /* 章の見出しとして扱われた行は、MarkDownの見出し記法 "# " を先頭に付与する */
                                 /* このアプリでは章毎に別のファイルに書き出すので階層の深さに関係なく#の数を1つに固定しています */
-                                bool isHeadingRow_flg = !string.IsNullOrEmpty( num );
+                                bool isHeadingRow_flg = isNewChapter_flg;
                                 string headingPrefix = "";
                                 if( isHeadingRow_flg )
                                 {
