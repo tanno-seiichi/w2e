@@ -51,15 +51,28 @@
       アップグレード時だけ、下の SetProperty でバージョンアップ向けの文言に
       差し替えます。
     -->
-    <Property Id="WIX_WELCOME_MESSAGE" Value="!(loc.WelcomeDlgDescriptionInstall)" />
+    <Property Id="WIX_WELCOME_MESSAGE" Secure="yes" />
 
-    <SetProperty
-      Id="WIX_WELCOME_MESSAGE"
-      Value="!(loc.WelcomeDlgDescriptionUpgrade)"
-      After="LaunchConditions"
-      Sequence="ui"
-      Condition="WIX_UPGRADE_DETECTED" />
+    <!--
+      Property の Value による静的な値設定では、[ProductName] などの
+      プロパティ参照が実行時にフォーマット（解決）されないため、
+      WelcomeDlg 側で "[WIX_WELCOME_MESSAGE]" を展開した際に
+      "[ProductName]" が文字列のまま表示されてしまいます。
+      SetProperty（内部的には Id = 対象プロパティ名として扱われる）は
+      同じプロパティに対して複数条件で設定できないため、ここでは
+      CustomAction を直接使い、InstallUISequence 側で条件分岐しています。
+      これにより新規インストール時も [ProductName] が正しく解決されます。
+    -->
+    <CustomAction
+      Id="SetWelcomeMessageInstall"
+      Property="WIX_WELCOME_MESSAGE"
+      Value="!(loc.WelcomeDlgDescriptionInstall)" />
 
+    <CustomAction
+      Id="SetWelcomeMessageUpgrade"
+      Property="WIX_WELCOME_MESSAGE"
+      Value="!(loc.WelcomeDlgDescriptionUpgrade)" />
+    
     <UI Id="WixUI_MinimalUpgrade_X64">
 
       <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
@@ -120,7 +133,9 @@
         LaunchCondition が既にブロックするため、表示しないようにしています。
       -->
       <InstallUISequence>
-        <Show Dialog="WelcomeDlg" After="LaunchConditions" Condition="NOT Installed AND NOT WIX_DOWNGRADE_DETECTED" />
+        <Custom Action="SetWelcomeMessageInstall" After="LaunchConditions" Condition="NOT WIX_UPGRADE_DETECTED" />
+        <Custom Action="SetWelcomeMessageUpgrade" After="SetWelcomeMessageInstall" Condition="WIX_UPGRADE_DETECTED" />
+        <Show Dialog="WelcomeDlg" After="SetWelcomeMessageUpgrade" Condition="NOT Installed AND NOT WIX_DOWNGRADE_DETECTED" />
         <!--
           DowngradeErrorDlg は "LaunchConditions" より前に割り込ませます。
           [OK] は EndDialog Value="Exit" で即座に UI シーケンス全体を終了するため、
