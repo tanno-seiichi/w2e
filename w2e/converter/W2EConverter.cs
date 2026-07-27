@@ -111,6 +111,14 @@ namespace w2e.converter
                         /* 箇条書きの記号（①、a)、・ など）を生成するためのnumIdごとのカウンタ（文書全体で共有し、シートが切り替わっても初期化しない） */
                         var listCounters = new Dictionary<int, Dictionary<int, int>>();
 
+                        /* 直前に新規ファイルとして採用した章タイトルを保持する
+                         * （見出しテキストが空で、次の非空段落をタイトルとして補完する際に、
+                         *   その補完先が直前の章タイトルと同一だった場合は、
+                         *   実体のない空の見出し段落（コピー&ペースト等で紛れ込んだもの）を
+                         *   誤って新しい章として分割してしまわないようにするために使用する）
+                         */
+                        string lastChapterTitle = null;
+
                         int total = body.Elements().Count();
                         int current = 0;
 
@@ -151,13 +159,25 @@ namespace w2e.converter
                                 /* この段落が新しい章の開始（新規シートを作るべき見出し）かどうか */
                                 bool isNewChapter_flg = false;
 
+                                /* この段落が、直前の章と重複する見出し（誤って紛れ込んだ空・重複見出し段落）であり、
+                                 * 出力自体を丸ごとスキップすべきかどうか
+                                 */
+                                bool isDuplicateHeading_flg = false;
+
                                 if( isHeading_flg )
                                 {
+                                    /* engine.Generateはカウンタをインクリメントするため、後で重複見出しと判明した場合に
+                                     * 巻き戻せるよう、呼び出し前の状態を保存しておく
+                                     */
+                                    Dictionary<int, int> engineStateBeforeGenerate = engine.SaveState();
+                                    bool usedEngineGenerate_flg = true;
+
                                     if( numId.HasValue && numberingMap.ContainsKey( numId.Value ) )
                                     {
                                         /* Wordの番号定義（numPr）から章番号を取得できる場合 */
                                         int levelValue = level.HasValue ? level.Value : 0;
                                         numData.text = engine.Generate( numberingMap[numId.Value], levelValue );
+                                        usedEngineGenerate_flg = true;
                                     }
                                     else if( WordHelper.TryExtractLeadingNumber( textData.text, out string extractedNum, out string extractedTitle ) )
                                     {
@@ -185,7 +205,41 @@ namespace w2e.converter
                                         }
 
                                         isNewChapter_flg = !string.IsNullOrEmpty( textData.text );
+
+                                        /* 採用予定のタイトルが、直前に採用した章タイトルと完全に同一である場合は、
+                                         * Word上に紛れ込んだ空・非表示の重複見出し段落（コピー&ペーストの残骸や
+                                         * 削除履歴の残骸など）を誤って新章として分割してしまったものとみなし、
+                                         * 新規ファイル作成を取り消す
+                                         * （見出しテキストが直接重複している場合・空欄で次段落から補完した場合の
+                                         *   両方に対応する）
+                                         */
+                                        if( isNewChapter_flg && textData.text == lastChapterTitle )
+                                        {
+                                            isNewChapter_flg = false;
+                                            isDuplicateHeading_flg = true;
+
+                                            /* 章番号カウンタが実際には消費されなかったことにするため、
+                                             * engine.Generate呼び出し前の状態に巻き戻す
+                                             */
+                                            if( usedEngineGenerate_flg )
+                                            {
+                                                engine.RestoreState( engineStateBeforeGenerate );
+                                            }
+                                        }
                                     }
+                                }
+
+#if DEBUG
+                                onLogUpdate?.Invoke( $"[DEBUG] idx={elementIndex} numId={numId} level={level} num=\"{numData.text}\" text=\"{textData.text}\" isNewChapter={isNewChapter_flg} isDuplicatedHeading={isDuplicateHeading_flg} lastChapterTitle=\"{lastChapterTitle}\"" );
+#endif
+
+                                /* 重複見出しと判定した段落は、章番号・タイトルとして採用しないだけでなく、
+                                 * 本文としても出力せずに丸ごとスキップする
+                                 * （Word上に紛れ込んだ空・重複見出し段落の残骸を出力してしまわないようにするため）
+                                 */
+                                if( isDuplicateHeading_flg )
+                                {
+                                    continue;
                                 }
 
                                 /* 箇条書きの場合は、記号を生成する
@@ -236,6 +290,9 @@ namespace w2e.converter
                                 else if( isNewChapter_flg )
                                 {
                                     /* 章番号を取得した場合 */
+
+                                    /* 今回採用した章タイトルを記憶する */
+                                    lastChapterTitle = textData.text;
 
                                     /* 章番号 章タイトル のシートを追加 */
                                     sheetName = ExcelHelper.SafeSheetName( ( numData.text + " " + textData.text ).Trim() );
