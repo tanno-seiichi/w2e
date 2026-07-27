@@ -84,6 +84,14 @@ namespace w2e.converter
                     /* 現在の章番号を初期化(画像ファイルのファイル名に使用する) */
                     string currentNum = string.Empty;
 
+                    /* 直前に新規ファイルとして採用した章タイトルを保持する
+                     * （見出しテキストが空で、次の非空段落をタイトルとして補完する際に、
+                     *   その補完先が直前の章タイトルと同一だった場合は、
+                     *   実体のない空の見出し段落（コピー&ペースト等で紛れ込んだもの）を
+                     *   誤って新しい章として分割してしまわないようにするために使用する）
+                     */
+                    string lastChapterTitle = null;
+
                     /* 現在の章内で出現した見出しの階層スタック（章見出し自身を深さ1として、以降に出現した見出しの
                      * 相対的な深さを「直前に出現した見出しとの関係」から決めるために使用する）
                      * 各要素は (Word上のレベル, 割り当てた深さ) のペア
@@ -138,13 +146,25 @@ namespace w2e.converter
                             /* この段落が新しい章の開始（新規ファイルを作るべき見出し）かどうか */
                             bool isNewChapter_flg = false;
 
+                            /* この段落が、直前の章と重複する見出し（誤って紛れ込んだ空・重複見出し段落）であり、
+                             * 出力自体を丸ごとスキップすべきかどうか
+                             */
+                            bool isDuplicateHeading_flg  = false;
+
                             if( isHeading_flg )
                             {
+                                /* engine.Generateはカウンタをインクリメントするため、後で重複見出しと判明した場合に
+                                 * 巻き戻せるよう、呼び出し前の状態を保存しておく
+                                 */
+                                Dictionary<int, int> engineStateBeforeGenerate = engine.SaveState();
+                                bool usedEngineGenerate_flg = true;
+
                                 if( numId.HasValue && numberingMap.ContainsKey( numId.Value ) )
                                 {
                                     /* Wordの番号定義（numPr）から章番号を取得できる場合 */
                                     int levelValue = level ?? 0;
                                     num = engine.Generate( numberingMap[numId.Value], levelValue );
+                                    usedEngineGenerate_flg = true;
                                 }
                                 else if( WordHelper.TryExtractLeadingNumber( text, out string extractedNum, out string extractedTitle ) )
                                 {
@@ -162,7 +182,9 @@ namespace w2e.converter
                                     /* 章番号は取得できたがタイトルが空の場合（見出しが章番号のみの場合）は、
                                      * 次の空白でない段落をタイトルとして補完する
                                      */
-                                    if( string.IsNullOrEmpty( text ) )
+                                    bool isEmptyHeadingText_flg = string.IsNullOrEmpty( text );
+
+                                    if( isEmptyHeadingText_flg )
                                     {
                                         string fallbackTitle = WordHelper.FindNextNonBlankParagraphText( elements, elementIndex + 1 );
                                         if( !string.IsNullOrEmpty( fallbackTitle ) )
@@ -173,10 +195,45 @@ namespace w2e.converter
 
                                     isNewChapter_flg = !string.IsNullOrEmpty( text );
 
+                                    /* 採用予定のタイトルが、直前に採用した章タイトルと完全に同一である場合は、
+                                     * Word上に紛れ込んだ空・非表示の重複見出し段落（コピー&ペーストの残骸や
+                                     * 削除履歴の残骸など）を誤って新章として分割してしまったものとみなし、
+                                     * 新規ファイル作成を取り消す
+                                     */
+                                    if( isNewChapter_flg && text == lastChapterTitle )
+                                    {
+                                        isNewChapter_flg = false;
+                                        isDuplicateHeading_flg = true;
+
+                                        /* 章番号カウンタが実際には消費されなかったことにするため、
+                                         * engine.Generate呼び出し前の状態に巻き戻す
+                                         */
+                                        if( usedEngineGenerate_flg )
+                                        {
+                                            engine.RestoreState( engineStateBeforeGenerate );
+                                        }
+                                    }
+
+#if DEBUG
+                                    onLogUpdate?.Invoke( $"[DEBUG] idx={elementIndex} numId={numId} level={level} num=\"{num}\" isEmptyHeadingText={isEmptyHeadingText_flg} text=\"{text}\" isNewChapter={isNewChapter_flg} lastChapterTitle=\"{lastChapterTitle}\"" );
+#endif
+
+                                    /* 重複見出しと判定した段落は、章番号・タイトルとして採用しないだけでなく、
+                                     * 本文としても出力せずに丸ごとスキップする
+                                     * （Word上に紛れ込んだ空・重複見出し段落の残骸を出力してしまわないようにするため）
+                                     */
+                                    if( isDuplicateHeading_flg )
+                                    {
+                                        continue;
+                                    }
+
                                     if( isNewChapter_flg )
                                     {
                                         /* 現在の章番号を更新(同じ章の画像ファイルのファイル名に使用する) */
                                         currentNum = num;
+
+                                        /* 今回採用した章タイトルを記憶する */
+                                        lastChapterTitle = text;
 
                                         /* 章見出し自身を深さ1として、階層スタックを初期化する
                                          * （以降に出現する番号を持たない見出しの相対的な深さの基準にする）

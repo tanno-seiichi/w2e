@@ -19,6 +19,25 @@ namespace w2e.word
         private Dictionary<int, int> m_counters = new Dictionary<int, int>();
 
         /// <summary>
+        /// 現在のカウンタ状態のスナップショットを取得する
+        ///  （重複見出しなど、番号を裁判しなかったことにしたい場合に、後から状態を復元するために使用する）
+        /// </summary>
+        /// <returns>現在のカウンタ状態のコピー</returns>
+        public Dictionary<int, int> SaveState()
+        {
+            return new Dictionary<int, int>( m_counters );
+        }
+
+        /// <summary>
+        /// カウンタ状態を指定されたスナップショットの内容に復元する
+        /// </summary>
+        /// <param name="a_state">SaveStateで取得したカウンタ状態</param>
+        public void RestoreState( Dictionary<int, int> a_state )
+        {
+            m_counters = new Dictionary<int, int>( a_state );
+        }
+
+        /// <summary>
         /// 指定された番号定義およびレベルに基づいて現在の段落に対応する番号文字列を生成する
         /// </summary>
         /// <param name="a_def">Wordの章番号の番号付け(Numbering)定義情報。abstractNum 単位で定義されたレベル別の番号書式 (%1, %2 など) を保持する</param>

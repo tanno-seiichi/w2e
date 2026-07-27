@@ -294,10 +294,6 @@ namespace w2e.word
                     {
                         sb.Append( Environment.NewLine );
                     }
-                    else
-                    {
-                        Console.WriteLine( br.Type );
-                    }
                     continue;
                 }
 
