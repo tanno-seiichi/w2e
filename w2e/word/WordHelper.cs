@@ -47,19 +47,25 @@ namespace w2e.word
             /* 段落の番号情報を取得 */
             NumberingProperties numPr = a_pars.ParagraphProperties?.NumberingProperties;
 
-            /* 見出しスタイルか判定（スタイル名が "heading" で始まる場合）
-             * 箇条書きの番号を章番号として誤検出しないため、
-             * heading 系スタイルのみ章番号対象とする
+            /* 見出しスタイルか判定。
+             * ・スタイル名（w;name）が "heading" で始まる場合（英語UIのWord）
+             * ・スタイルID（w:styleId）が "Heading" で始まる場合（日本語UIなどスタイル名がローカライズされていても
+             *   内部的なIDは "Heading1" 等の英語表記になっていることが多いため、こちらも合わせて判定する）
+             * 箇条書きの番号を章番号として誤検出しないため、heading 系スタイルのみ章番号対象とする
              */
-            bool isHeadingStyleName_flg = !string.IsNullOrEmpty( styleName ) &&
-                                    styleName.StartsWith( "heading", StringComparison.OrdinalIgnoreCase );
+            bool isHeadingStyleName_flg =
+                ( !string.IsNullOrEmpty( styleName ) && styleName.StartsWith( "heading", StringComparison.OrdinalIgnoreCase ) ) ||
+                ( !string.IsNullOrEmpty( styleId ) && styleId.StartsWith( "Heading", StringComparison.OrdinalIgnoreCase ) );
 
             /* アウトラインレベル（Wordの「ナビゲーション」ウィンドウに見出しとして表示される階層情報）による判定。
              * スタイル名が「heading」で始まらないカスタムスタイルでも、アウトラインレベルが
              * 設定されていれば見出しとして扱う。段落自身の設定を優先し、無い場合はスタイルの設定を参照する。
+             * スタイル自身に設定が無い場合は、basedOn による継承チェーンを辿って基底スタイルの設定を参照する
+             * （Wordはスタイルのプロパティを basedon 元から継承するため、ナビゲーションウィンドウでの
+             *   見出し判定と一致させるにはこの継承を解決する必要がある）
              * （w:outlineLvl は 0～8 が見出しレベル1～9に対応し、未設定または9以上は本文扱い）
              */
-            OutlineLevel outlineLevel = a_pars.ParagraphProperties?.OutlineLevel ?? style?.StyleParagraphProperties?.OutlineLevel;
+            OutlineLevel outlineLevel = a_pars.ParagraphProperties?.OutlineLevel ?? ResolveOutlineLevel( style, a_stylePart );
             bool isHeadingOutline_flg = null != outlineLevel?.Val && outlineLevel.Val.Value <= 8;
 
             bool isHeadingStyle_flg = isHeadingStyleName_flg || isHeadingOutline_flg;
@@ -113,6 +119,44 @@ namespace w2e.word
             );
         }
 
+
+        /// <summary>
+        /// スタイルの basedOn（継承元スタイル）チェーンを辿り、最初に見つかった OutlineLevel を取得する。
+        /// Word1はスタイルのプロパティを basedOn 元のスタイルから継承するため、対象スタイル自身に
+        /// OutlineLevel が設定されていなくても、継承元に設定されていればナビゲーションウィンドウ上は
+        /// 見出しとして表示される。この継承関係をコード上でも解決するために使用する。
+        /// </summary>
+        /// <param name="a_style">対象のスタイル</param>
+        /// <param name="a_stylePart">スタイル定義パート（継承元スタイルの検索に使用する）</param>
+        /// <returns>見つかった場合はその OutlineLevel。見つからない場合はnull</returns>
+        private static OutlineLevel ResolveOutlineLevel( Style a_style, StyleDefinitionsPart a_stylePart )
+        {
+            /* 循環参照による無限ループを防ぐため、辿ったスタイルIDを記録する */
+            HashSet<string> visitedStyleIds = new HashSet<string>();
+            Style current = a_style;
+
+            while( null != current )
+            {
+                OutlineLevel outlineLevel = current.StyleParagraphProperties?.OutlineLevel;
+                if( null != outlineLevel )
+                {
+                    return outlineLevel;
+                }
+
+                string currentStyleId = current.StyleId?.Value;
+                string basedOnId = current.BasedOn?.Val?.Value;
+
+                if( string.IsNullOrEmpty( basedOnId ) ||
+                    !string.IsNullOrEmpty( currentStyleId ) && !visitedStyleIds.Add( currentStyleId ) )
+                {
+                    break;
+                }
+
+                current = a_stylePart?.Styles?.Elements<Style>().FirstOrDefault( s => s.StyleId == basedOnId );
+            }
+
+            return null;
+        }
 
         /// <summary>
         /// 見出しテキストの先頭にある数字パターン（章番号）を検出する正規表現。

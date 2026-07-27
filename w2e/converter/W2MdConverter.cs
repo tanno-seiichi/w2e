@@ -166,9 +166,13 @@ namespace w2e.converter
                                     num = engine.Generate( numberingMap[numId.Value], levelValue );
                                     usedEngineGenerate_flg = true;
                                 }
-                                else if( WordHelper.TryExtractLeadingNumber( text, out string extractedNum, out string extractedTitle ) )
+                                
+                                if( string.IsNullOrEmpty( num ) &&
+                                    WordHelper.TryExtractLeadingNumber( text, out string extractedNum, out string extractedTitle ) )
                                 {
-                                    /* Wordの番号定義が無い場合は、見出しテキスト先頭の数字パターン（"3" "4.1"など）を章番号として代用する */
+                                    /* Wordの番号定義が無い場合、または番号定義はあってもレベルに対応する書式が
+                                     * 取得できず番号を生成できなかった場合は、見出しテキスト先頭の数字パターン
+                                     * （"3" "4.1"など）を章番号として代用する */
                                     num = extractedNum;
                                     text = extractedTitle;
                                 }
