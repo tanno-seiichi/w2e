@@ -95,6 +95,16 @@ namespace w2e.word
 
             foreach( DocumentFormat.OpenXml.Vml.ImageData imageData in imageDataList )
             {
+                /* mc:AlternateContent の mc:Fallback（後方互換用のVML表現）内にある画像は、
+                 * 対応する mc:Choice 側に現代形式（w:drawing）の画像が存在する前提で、Wordでは表示に使われない。
+                 * これも取得してしまうと、GetDrawingImages()で取得済みの画像と同じものが二重にカウントされてしまうため、
+                 * mc:Fallback内の画像は除外する。
+                 */
+                if( IsInsideAlternateContentFallback( imageData ) )
+                {
+                    continue;
+                }
+
                 if( null == imageData.RelationshipId )
                 {
                     continue;
@@ -114,6 +124,25 @@ namespace w2e.word
                     a_imageList.Add( wordImageData );
                 }
             }
+        }
+
+
+        /// <summary>
+        /// 指定した要素が、mc:AlternateContent の mc:Fallback（後方互換用の代替コンテンツ）の内側にあるかどうかを判定する。
+        /// </summary>
+        /// <param name="a_element">判定対象の要素</param>
+        /// <returns>mc:Fallbackの内側にある場合はtrue</returns>
+        private static bool IsInsideAlternateContentFallback( DocumentFormat.OpenXml.OpenXmlElement a_element )
+        {
+            for( DocumentFormat.OpenXml.OpenXmlElement current = a_element.Parent; null != current; current = current.Parent )
+            {
+                if( current is DocumentFormat.OpenXml.AlternateContentFallback )
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
 
