@@ -159,6 +159,14 @@ namespace w2e.word
                 }
             }
 
+            /* テキストを含む図形は、実際のテキストサイズに合わせて図形の大きさを補正する
+             * （右端の文字切れや、図形の高さに対してテキストが小さすぎる場合の余白を防ぐため）
+             */
+            foreach( ShapeInfo shape in shapeInfoList )
+            {
+                FitShapeToContent( shape, scaleX, scaleY );
+            }
+
             /* 図形は画像の外側にはみ出して配置されていることがある（Word上ではページの余白部分に
              * はみ出す形で違和感なく表示される）。はみ出した部分が切れないよう、画像と全ての図形を
              * 包含する外接矩形（EMU）を求め、その大きさに合わせてキャンバスを拡張する。
@@ -194,7 +202,14 @@ namespace w2e.word
 
                 foreach( ShapeInfo shape in shapeInfoList )
                 {
-                    DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
+                    try
+                    {
+                        DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
+                    }
+                    catch
+                    {
+                        /* 1つの図形の描画に失敗しても、他の図形・画像の合成自体は継続する */
+                    }
                 }
             }
 
@@ -230,6 +245,14 @@ namespace w2e.word
             double scaleX = 1.0 / EMU_PER_PIXEL;
             double scaleY = 1.0 / EMU_PER_PIXEL;
 
+            /* テキストを含む図形は、実際のテキストサイズに合わせて図形の大きさを補正する
+             * （右端の文字切れや、図形の高さに対してテキストが小さすぎる場合の余白を防ぐため）
+             */
+            foreach( ShapeInfo shape in shapeInfoList )
+            {
+                FitShapeToContent( shape, scaleX, scaleY );
+            }
+
             /* 図形のみの場合、画像との位置合わせが不要なためインデント補正は行わず、
              * 図形同士の相対位置（段基準の絶対座標）をそのまま使用する。
              */
@@ -260,7 +283,14 @@ namespace w2e.word
             {
                 foreach( ShapeInfo shape in shapeInfoList )
                 {
-                    DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
+                    try
+                    {
+                        DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
+                    }
+                    catch
+                    {
+                        /* 1つの図形の描画に失敗しても、他の図形の合成自体は継続する */
+                    }
                 }
             }
 
@@ -295,6 +325,128 @@ namespace w2e.word
             }
 
             return shapeInfoList;
+        }
+
+
+        /// <summary>
+        /// テキストを含む図形について、実際に描画されるテキストの幅・高さを測定し、
+        /// 図形の実効サイズ（CxEmu/CyEmu）をそれに合わせて補正する。
+        /// 幅は「足りなければ広げる」（右端の文字切れを防ぐ）、高さは「実測値に合わせる」
+        /// （declaredされたサイズが実際のテキストより大きい場合の余分な空白を除去する）。
+        /// テキストを持たない図形は何もしない。
+        /// </summary>
+        /// <param name="a_shape">対象の図形情報（呼び出し後、CxEmu/CyEmuが更新される）</param>
+        /// <param name="a_scaleX">EMU→ピクセルの水平方向の倍率</param>
+        /// <param name="a_scaleY">EMU→ピクセルの垂直方向の倍率</param>
+        private static void FitShapeToContent( ShapeInfo a_shape, double a_scaleX, double a_scaleY )
+        {
+            if( null == a_shape.TextLines || 0 == a_shape.TextLines.Count )
+            {
+                return;
+            }
+
+            try
+            {
+                const double HORIZONTAL_PADDING_PX = 3;
+                const double VERTICAL_PADDING_PX = 2;
+
+                /* 末尾の空行（単なる段落終端マーカーで、Word上でも余分な高さとしては表示されないことが多い）は、
+                 * 高さの計算対象から除外する。文中の空行（コード中の空白行など）は引き続き高さに含める。
+                 */
+                int lastNonEmptyIndex = -1;
+                for( int i = 0; i < a_shape.TextLines.Count; i++ )
+                {
+                    if( 0 < a_shape.TextLines[i].Runs.Count )
+                    {
+                        lastNonEmptyIndex = i;
+                    }
+                }
+
+                double maxWidthPx = 0;
+                double totalHeightPx = VERTICAL_PADDING_PX;
+
+                for( int i = 0; i <= lastNonEmptyIndex; i++ )
+                {
+                    double lineWidthPx = MeasureTextLine( a_shape.TextLines[i], a_scaleY, out double lineHeightPx );
+                    maxWidthPx = Math.Max( maxWidthPx, lineWidthPx );
+                    totalHeightPx += lineHeightPx;
+                }
+
+                totalHeightPx += VERTICAL_PADDING_PX;
+                maxWidthPx += HORIZONTAL_PADDING_PX * 2;
+
+                double neededCxEmu = maxWidthPx / a_scaleX;
+                double neededCyEmu = totalHeightPx / a_scaleY;
+
+                /* 幅は元の図形より狭くはしない（意図的な右余白を保つため）。高さは実測値に合わせて詰める */
+                a_shape.CxEmu = Math.Max( a_shape.CxEmu, neededCxEmu );
+                a_shape.CyEmu = neededCyEmu;
+            }
+            catch
+            {
+                /* 測定に失敗した場合は、元の図形サイズのまま処理を続行する */
+            }
+        }
+
+
+        /// <summary>
+        /// 図形内テキスト1行分の幅・高さ（ピクセル）を測定する（DrawShapeTextLinesと同じフォント設定ロジックを使用する）。
+        /// </summary>
+        /// <param name="a_line">測定対象の行</param>
+        /// <param name="a_scaleY">EMU→ピクセルの垂直方向の倍率（フォントサイズの換算に使用する）</param>
+        /// <param name="a_heightPx">その行の高さ（ピクセル）</param>
+        /// <returns>その行の幅（ピクセル）</returns>
+        private static double MeasureTextLine( ShapeTextLine a_line, double a_scaleY, out double a_heightPx )
+        {
+            const double EMU_PER_POINT = 12700.0;
+
+            if( 0 == a_line.Runs.Count )
+            {
+                a_heightPx = 12.0 * EMU_PER_POINT * a_scaleY;
+                return 0;
+            }
+
+            string combinedText = string.Concat( a_line.Runs.Select( r => r.Text ) );
+            double firstFontSizePx = Math.Max( 4, a_line.Runs[0].FontSizePt * EMU_PER_POINT * a_scaleY );
+            string defaultFontFamily = a_line.Runs[0].FontFamily ?? "Meiryo UI, Yu Gothic UI, Segoe UI";
+
+            FormattedText measure = new FormattedText(
+                combinedText,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                new Typeface( new FontFamily( defaultFontFamily ), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal ),
+                firstFontSizePx,
+                Brushes.Black,
+                96.0 );
+            measure.MaxTextWidth = 1000000.0;
+
+            int charIndex = 0;
+            foreach( ShapeTextRun run in a_line.Runs )
+            {
+                int len = run.Text.Length;
+                if( 0 == len ) { continue; }
+
+                double runFontSizePx = Math.Max( 4, run.FontSizePt * EMU_PER_POINT * a_scaleY );
+                measure.SetFontSize( runFontSizePx, charIndex, len );
+
+                if( !string.IsNullOrEmpty( run.FontFamily ) )
+                {
+                    measure.SetFontFamily( new FontFamily( run.FontFamily ), charIndex, len );
+                }
+                if( run.Bold )
+                {
+                    measure.SetFontWeight( FontWeights.Bold, charIndex, len );
+                }
+                if( run.Italic )
+                {
+                    measure.SetFontStyle( FontStyles.Italic, charIndex, len );
+                }
+
+                charIndex += len;
+            }
+
+            a_heightPx = measure.Height;
+            return measure.WidthIncludingTrailingWhitespace;
         }
 
 
@@ -372,9 +524,10 @@ namespace w2e.word
                     }
 
                     ShapeInfo info = ParseShape( drawing );
-                    if( null != info && !string.IsNullOrEmpty( info.Text ) )
+                    string combinedText = CombineShapeText( info );
+                    if( !string.IsNullOrEmpty( combinedText ) )
                     {
-                        result.Add( info.Text.Trim() );
+                        result.Add( combinedText );
                     }
                 }
             }
@@ -384,6 +537,22 @@ namespace w2e.word
             }
 
             return result;
+        }
+
+
+        /// <summary>
+        /// ShapeInfoのTextLines（行・run単位のテキスト）を、改行区切りの単純な文字列に結合する。
+        /// 重複段落の検出や、外部からの一覧取得（GetShapeTexts）で使用する。
+        /// </summary>
+        private static string CombineShapeText( ShapeInfo a_info )
+        {
+            if( null == a_info?.TextLines )
+            {
+                return null;
+            }
+
+            IEnumerable<string> lineTexts = a_info.TextLines.Select( l => string.Concat( l.Runs.Select( r => r.Text ) ) );
+            return string.Join( Environment.NewLine, lineTexts ).Trim();
         }
 
 
@@ -415,9 +584,35 @@ namespace w2e.word
             public double LineWidthEmu;
             public bool HeadArrow;
             public bool TailArrow;
-            public string Text;
-            public string TextColorHex;
-            public double TextFontSizePt = 10.5;
+
+            /// <summary>図形内のテキスト（行ごと・run（文字色や書式が変わる区間）ごとに保持する）。テキストが無い場合はnull</summary>
+            public List<ShapeTextLine> TextLines;
+        }
+
+
+        /// <summary>
+        /// 図形内テキストの1行分の情報
+        /// </summary>
+        private class ShapeTextLine
+        {
+            public List<ShapeTextRun> Runs = new List<ShapeTextRun>();
+
+            /// <summary>行の配置。"left" / "center" / "right"。既定は"left"</summary>
+            public string Alignment = "left";
+        }
+
+
+        /// <summary>
+        /// 図形内テキストの1区間（Wordのrun）分の情報。文字色・フォント・サイズ・太字/斜体が変わるごとに分かれる
+        /// </summary>
+        private class ShapeTextRun
+        {
+            public string Text = "";
+            public string ColorHex;
+            public string FontFamily;
+            public double FontSizePt = 10.5;
+            public bool Bold;
+            public bool Italic;
         }
 
 
@@ -517,8 +712,8 @@ namespace w2e.word
 
 
         /// <summary>
-        /// 図形（wps:wsp）内のテキストボックス（wps:txbx）から、表示テキスト・文字色・フォントサイズを取得する。
-        /// テキストが無い場合はShapeInfo.Textをnullのままにする。
+        /// 図形（wps:wsp）内のテキストボックス（wps:txbx）から、行ごと・run（文字色や書式の区間）ごとの
+        /// テキスト・文字色・フォント・サイズ・配置を取得する。テキストが無い場合はShapeInfo.TextLinesをnullのままにする。
         /// </summary>
         private static void ParseShapeText( XElement a_wsp, ShapeInfo a_info )
         {
@@ -528,53 +723,69 @@ namespace w2e.word
                 return;
             }
 
-            /* 段落ごとの文字列を改行で連結する */
-            List<string> paragraphTexts = new List<string>();
-            XElement firstRunProperties = null;
+            List<ShapeTextLine> lines = new List<ShapeTextLine>();
 
             foreach( XElement paragraph in txbxContent.Elements( W_NS + "p" ) )
             {
-                StringBuilder paragraphText = new StringBuilder();
+                ShapeTextLine line = new ShapeTextLine();
+
+                /* 段落の配置（左揃え・中央揃え・右揃え）。既定は左揃えとする */
+                string jc = paragraph.Element( W_NS + "pPr" )?.Element( W_NS + "jc" )?.Attribute( W_NS + "val" )?.Value;
+                if( "center" == jc || "right" == jc )
+                {
+                    line.Alignment = jc;
+                }
 
                 foreach( XElement run in paragraph.Elements( W_NS + "r" ) )
                 {
-                    if( null == firstRunProperties )
+                    string runText = string.Concat( run.Elements( W_NS + "t" ).Select( t => (string)t ) );
+                    if( string.IsNullOrEmpty( runText ) )
                     {
-                        firstRunProperties = run.Element( W_NS + "rPr" );
+                        continue;
                     }
 
-                    foreach( XElement textElement in run.Elements( W_NS + "t" ) )
+                    XElement rPr = run.Element( W_NS + "rPr" );
+
+                    ShapeTextRun textRun = new ShapeTextRun();
+                    textRun.Text = runText;
+
+                    /* 文字色 */
+                    string colorVal = rPr?.Element( W_NS + "color" )?.Attribute( W_NS + "val" )?.Value;
+                    if( !string.IsNullOrEmpty( colorVal ) && !"auto".Equals( colorVal, StringComparison.OrdinalIgnoreCase ) )
                     {
-                        paragraphText.Append( (string)textElement );
+                        textRun.ColorHex = colorVal;
                     }
+
+                    /* フォント名（半角文字用のasciiを使用する） */
+                    string fontAscii = rPr?.Element( W_NS + "rFonts" )?.Attribute( W_NS + "ascii" )?.Value;
+                    if( !string.IsNullOrEmpty( fontAscii ) )
+                    {
+                        textRun.FontFamily = fontAscii;
+                    }
+
+                    /* フォントサイズ（半ポイント単位） */
+                    string sizeVal = rPr?.Element( W_NS + "sz" )?.Attribute( W_NS + "val" )?.Value;
+                    if( !string.IsNullOrEmpty( sizeVal ) && double.TryParse( sizeVal, out double halfPoints ) )
+                    {
+                        textRun.FontSizePt = halfPoints / 2.0;
+                    }
+
+                    textRun.Bold = null != rPr?.Element( W_NS + "b" );
+                    textRun.Italic = null != rPr?.Element( W_NS + "i" );
+
+                    line.Runs.Add( textRun );
                 }
 
-                paragraphTexts.Add( paragraphText.ToString() );
+                lines.Add( line );
             }
 
-            string combinedText = string.Join( Environment.NewLine, paragraphTexts ).Trim();
-            if( string.IsNullOrEmpty( combinedText ) )
+            /* すべての行が空（runが1つも無い）の場合はテキストなしとして扱う */
+            if( lines.All( l => 0 == l.Runs.Count ) )
             {
                 return;
             }
 
-            a_info.Text = combinedText;
-
-            /* 文字色（先頭の実行から取得。無ければ既定色を描画時に使用する） */
-            XElement colorElement = firstRunProperties?.Element( W_NS + "color" );
-            string colorVal = colorElement?.Attribute( W_NS + "val" )?.Value;
-            if( !string.IsNullOrEmpty( colorVal ) && !"auto".Equals( colorVal, StringComparison.OrdinalIgnoreCase ) )
-            {
-                a_info.TextColorHex = colorVal;
-            }
-
-            /* フォントサイズ（半ポイント単位） */
-            XElement sizeElement = firstRunProperties?.Element( W_NS + "sz" );
-            string sizeVal = sizeElement?.Attribute( W_NS + "val" )?.Value;
-            if( !string.IsNullOrEmpty( sizeVal ) && double.TryParse( sizeVal, out double halfPoints ) )
-            {
-                a_info.TextFontSizePt = halfPoints / 2.0;
-            }
+            a_info.TextLines = lines;
         }
 
 
@@ -589,7 +800,7 @@ namespace w2e.word
 
 
         /// <summary>
-        /// a:solidFill要素から色(16進数)と不透明度を解析する。srgbClr / schemeClr の両方に対応する。
+        /// a:solidFill要素から色(16進数)と不透明度を解析する。srgbClr / schemeClr / prstClr に対応する。
         /// スキーム色（テーマ色）の解決自体はここでは行わず、色名の文字列（"accent2"等）をそのまま返す。
         /// 実際のRGBへの解決は描画時にテーマ配色を使って行う。
         /// </summary>
@@ -602,8 +813,9 @@ namespace w2e.word
 
             XElement srgb = a_solidFill.Element( A_NS + "srgbClr" );
             XElement scheme = a_solidFill.Element( A_NS + "schemeClr" );
+            XElement preset = a_solidFill.Element( A_NS + "prstClr" );
 
-            XElement colorElement = srgb ?? scheme;
+            XElement colorElement = srgb ?? scheme ?? preset;
             if( null == colorElement )
             {
                 return (null, 1.0);
@@ -615,8 +827,22 @@ namespace w2e.word
                 return (null, 1.0);
             }
 
-            /* srgbClrの場合はそのまま16進数、schemeClrの場合は "scheme:" を付けてマークしておき、描画時に解決する */
-            string colorKey = ( null != srgb ) ? val : "scheme:" + val;
+            /* srgbClrの場合はそのまま16進数、schemeClrの場合は "scheme:" を、
+             * prstClr（黒・白などの定義済み色名）の場合は "preset:" を付けてマークしておき、描画時に解決する
+             */
+            string colorKey;
+            if( null != srgb )
+            {
+                colorKey = val;
+            }
+            else if( null != scheme )
+            {
+                colorKey = "scheme:" + val;
+            }
+            else
+            {
+                colorKey = "preset:" + val;
+            }
 
             double alpha = 1.0;
             XElement alphaElement = colorElement.Element( A_NS + "alpha" );
@@ -679,60 +905,106 @@ namespace w2e.word
                 a_dc.DrawRectangle( fillBrush, pen, bounds );
             }
 
-            /* 図形内にテキストが設定されている場合は、図形の中央に描画する（コネクタ／矢印には描画しない） */
-            if( !isConnector && !string.IsNullOrEmpty( a_shape.Text ) )
+            /* 図形内にテキストが設定されている場合は描画する（コネクタ／矢印には描画しない） */
+            if( !isConnector && null != a_shape.TextLines && 0 < a_shape.TextLines.Count )
             {
-                DrawShapeText( a_dc, a_shape, bounds, a_themeColors );
+                DrawShapeTextLines( a_dc, a_shape, bounds, a_scaleY, a_themeColors );
             }
         }
 
 
         /// <summary>
-        /// 図形内のテキストを、図形の中央に収まるように描画する。
+        /// 図形内のテキストを、行・run（文字色や書式の区間）ごとに、それぞれの配置・色・フォントで描画する。
+        /// 上詰め・各行ごとの左揃え／中央揃え／右揃えに対応する（コードブロックのような複数行テキストを想定）。
         /// </summary>
-        private static void DrawShapeText( DrawingContext a_dc, ShapeInfo a_shape, Rect a_bounds, Dictionary<string, string> a_themeColors )
+        private static void DrawShapeTextLines( DrawingContext a_dc, ShapeInfo a_shape, Rect a_bounds, double a_scaleY, Dictionary<string, string> a_themeColors )
         {
-            Brush textBrush = ResolveBrush( a_shape.TextColorHex, 1.0, a_themeColors ) ?? Brushes.Black;
+            const double HORIZONTAL_PADDING_PX = 3;
+            const double VERTICAL_PADDING_PX = 2;
 
-            /* フォントサイズ(pt)をピクセルに変換する（1pt = 96/72 px） */
-            double fontSizePx = a_shape.TextFontSizePt * ( 96.0 / 72.0 );
-            if( 6 > fontSizePx )
+            /* 1pt = 12700 EMU。フォントサイズ(pt)を、このキャンバスのEMU→ピクセル倍率でピクセルに変換する
+             * （画像に重ねる場合は画像自身の解像度基準、図形のみの場合は96DPI基準の倍率になる）
+             */
+            const double EMU_PER_POINT = 12700.0;
+
+            double y = a_bounds.Y + VERTICAL_PADDING_PX;
+
+            foreach( ShapeTextLine line in a_shape.TextLines )
             {
-                fontSizePx = 6;
-            }
+                if( 0 == line.Runs.Count )
+                {
+                    /* 空行は既定サイズ相当だけ縦位置を進める */
+                    y += 12.0 * EMU_PER_POINT * a_scaleY;
+                    continue;
+                }
 
-            FormattedText formattedText = new FormattedText(
-                a_shape.Text,
-                System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                new Typeface( new FontFamily( "Meiryo UI, Yu Gothic UI, Segoe UI" ), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal ),
-                fontSizePx,
-                textBrush,
-                96.0 );
+                string combinedText = string.Concat( line.Runs.Select( r => r.Text ) );
 
-            formattedText.TextAlignment = TextAlignment.Center;
+                double firstFontSizePx = Math.Max( 4, line.Runs[0].FontSizePt * EMU_PER_POINT * a_scaleY );
+                string defaultFontFamily = line.Runs[0].FontFamily ?? "Meiryo UI, Yu Gothic UI, Segoe UI";
 
-            /* 図形の高さを超える場合は、収まるようにフォントサイズを縮小する */
-            if( formattedText.Height > a_bounds.Height && 0 < a_bounds.Height )
-            {
-                double shrinkRatio = a_bounds.Height / formattedText.Height;
-                double adjustedSizePx = Math.Max( 6, fontSizePx * shrinkRatio );
-
-                formattedText = new FormattedText(
-                    a_shape.Text,
+                FormattedText formattedText = new FormattedText(
+                    combinedText,
                     System.Globalization.CultureInfo.CurrentCulture,
                     FlowDirection.LeftToRight,
-                    new Typeface( new FontFamily( "Meiryo UI, Yu Gothic UI, Segoe UI" ), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal ),
-                    adjustedSizePx,
-                    textBrush,
+                    new Typeface( new FontFamily( defaultFontFamily ), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal ),
+                    firstFontSizePx,
+                    Brushes.Black,
                     96.0 );
-                formattedText.TextAlignment = TextAlignment.Center;
+
+                /* 各Wordの段落を1行として扱い、途中で折り返さない（Word側の改行位置をそのまま尊重する）。
+                 * double.PositiveInfinityを指定するとWPFの内部レイアウト計算で例外になることがあるため、
+                 * 十分に大きい有限値を使用する
+                 */
+                formattedText.MaxTextWidth = 1000000.0;
+
+                /* runごとに文字色・フォント・サイズ・太字/斜体を個別に適用する */
+                int charIndex = 0;
+                foreach( ShapeTextRun run in line.Runs )
+                {
+                    int len = run.Text.Length;
+                    if( 0 == len ) { continue; }
+
+                    Brush runBrush = ResolveBrush( run.ColorHex, 1.0, a_themeColors ) ?? Brushes.Black;
+                    formattedText.SetForegroundBrush( runBrush, charIndex, len );
+
+                    double runFontSizePx = Math.Max( 4, run.FontSizePt * EMU_PER_POINT * a_scaleY );
+                    formattedText.SetFontSize( runFontSizePx, charIndex, len );
+
+                    if( !string.IsNullOrEmpty( run.FontFamily ) )
+                    {
+                        formattedText.SetFontFamily( new FontFamily( run.FontFamily ), charIndex, len );
+                    }
+                    if( run.Bold )
+                    {
+                        formattedText.SetFontWeight( FontWeights.Bold, charIndex, len );
+                    }
+                    if( run.Italic )
+                    {
+                        formattedText.SetFontStyle( FontStyles.Italic, charIndex, len );
+                    }
+
+                    charIndex += len;
+                }
+
+                double x;
+                if( "center" == line.Alignment )
+                {
+                    x = a_bounds.X + Math.Max( 0, ( a_bounds.Width - formattedText.WidthIncludingTrailingWhitespace ) / 2 );
+                }
+                else if( "right" == line.Alignment )
+                {
+                    x = a_bounds.X + Math.Max( HORIZONTAL_PADDING_PX, a_bounds.Width - formattedText.WidthIncludingTrailingWhitespace - HORIZONTAL_PADDING_PX );
+                }
+                else
+                {
+                    x = a_bounds.X + HORIZONTAL_PADDING_PX;
+                }
+
+                a_dc.DrawText( formattedText, new Point( x, y ) );
+
+                y += formattedText.Height;
             }
-
-            formattedText.MaxTextWidth = Math.Max( 1, a_bounds.Width );
-
-            Point origin = new Point( a_bounds.X, a_bounds.Y + Math.Max( 0, ( a_bounds.Height - formattedText.Height ) / 2 ) );
-            a_dc.DrawText( formattedText, origin );
         }
 
 
@@ -791,6 +1063,11 @@ namespace w2e.word
                     hex = "808080";
                 }
             }
+            else if( a_colorKey.StartsWith( "preset:", StringComparison.OrdinalIgnoreCase ) )
+            {
+                string presetName = a_colorKey.Substring( "preset:".Length );
+                hex = ResolvePresetColorHex( presetName );
+            }
 
             try
             {
@@ -804,6 +1081,48 @@ namespace w2e.word
             catch
             {
                 return null;
+            }
+        }
+
+
+        /// <summary>
+        /// DrawingMLのプリセット色名（a:prstClr、"black"や"white"等）を16進数カラーコードに変換する。
+        /// よく使われる代表的な色名のみ対応し、未対応の色名はグレーにフォールバックする。
+        /// </summary>
+        private static string ResolvePresetColorHex( string a_presetName )
+        {
+            switch( ( a_presetName ?? "" ).ToLowerInvariant() )
+            {
+                case "black": return "000000";
+                case "white": return "FFFFFF";
+                case "red": return "FF0000";
+                case "green": return "008000";
+                case "blue": return "0000FF";
+                case "yellow": return "FFFF00";
+                case "orange": return "FFA500";
+                case "purple": return "800080";
+                case "gray":
+                case "grey": return "808080";
+                case "darkgray":
+                case "darkgrey": return "A9A9A9";
+                case "lightgray":
+                case "lightgrey": return "D3D3D3";
+                case "silver": return "C0C0C0";
+                case "maroon": return "800000";
+                case "navy": return "000080";
+                case "teal": return "008080";
+                case "olive": return "808000";
+                case "lime": return "00FF00";
+                case "aqua":
+                case "cyan": return "00FFFF";
+                case "magenta":
+                case "fuchsia": return "FF00FF";
+                case "brown": return "A52A2A";
+                case "pink": return "FFC0CB";
+                case "gold": return "FFD700";
+                case "indigo": return "4B0082";
+                case "violet": return "EE82EE";
+                default: return "808080";
             }
         }
 
