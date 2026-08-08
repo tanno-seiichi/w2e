@@ -5,24 +5,36 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:w2e"
         mc:Ignorable="d"
-        Title="" Height="164" Width="560" MinHeight="164" WindowStartupLocation="CenterScreen"
+        Title="" Height="164" Width="560" MinHeight="187" WindowStartupLocation="CenterScreen"
         Icon="image/w2e.ico"
         ResizeMode="CanResizeWithGrip"
         Loaded="WindowLoaded"
         Closed="WindowClosed">
     <Grid Margin="5">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><!-- 0. 読込ファイル指定, 出力フォーマット選択 -->
+            <RowDefinition Height="Auto"/><!-- 0.メニューバー -->
             <RowDefinition Height="5"/><!-- 1. 余白 -->
-            <RowDefinition Height="Auto"/><!-- 2. 操作ボタン -->
+            <RowDefinition Height="Auto"/><!-- 2. 読込ファイル指定, 出力フォーマット選択 -->
             <RowDefinition Height="5"/><!-- 3. 余白 -->
-            <RowDefinition Height="Auto"/><!-- 4. プログレスバー -->
+            <RowDefinition Height="Auto"/><!-- 4. 操作ボタン -->
             <RowDefinition Height="5"/><!-- 5. 余白 -->
-            <RowDefinition Height="*"/><!-- 6. ログ表示 -->
+            <RowDefinition Height="Auto"/><!-- 6. プログレスバー -->
+            <RowDefinition Height="5"/><!-- 7. 余白 -->
+            <RowDefinition Height="*"/><!-- 8. ログ表示 -->
         </Grid.RowDefinitions>
 
-        <!-- 0. 読込ファイル指定, 出力フォーマット選択 -->
-        <Grid Grid.Row="0">
+        <!-- 0.メニューバー -->
+        <Menu Grid.Row="0" Background="White">
+            <MenuItem Header="ファイル(_F)" Padding="2,0,5,0">
+                <MenuItem Header="終了(X)" Click="MenuExitClick"/>
+            </MenuItem>
+            <MenuItem Header="バージョン情報(A)" Click="MenuVersionClick"/>
+        </Menu>
+
+        <!-- 1. 余白 -->
+
+        <!-- 2. 読込ファイル指定, 出力フォーマット選択 -->
+        <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/><!-- 0-0. 読込ファイル指定-->
                 <RowDefinition Height="Auto"/><!-- 0-1. 出力フォーマット選択 -->
@@ -53,10 +65,10 @@
 
         </Grid>
 
-        <!-- 1. 余白 -->
+        <!-- 3. 余白 -->
         
-        <!-- 2. 操作ボタン -->
-        <Grid Grid.Row="2">
+        <!-- 4. 操作ボタン -->
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -68,16 +80,16 @@
             <Button Grid.Column="2" x:Name="m_btnCancel" Content="処理中断" Padding="5" Click="BtnCancelClick" IsEnabled="False"/>
         </Grid>
 
-        <!-- 3. 余白 -->
-        
-        <!-- 4. プログレスバー -->
-        <ProgressBar Grid.Row="4" x:Name="m_progressBar" Minimum="0" Maximum="100" Height="25"/>
-        <TextBlock Grid.Row="4" x:Name="m_progressBarMsg" Background="Transparent" Foreground="White" FontSize="15" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-
         <!-- 5. 余白 -->
         
-        <!-- 6. ログ表示 -->
-        <TextBox Grid.Row="6" x:Name="m_log" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        <!-- 6. プログレスバー -->
+        <ProgressBar Grid.Row="6" x:Name="m_progressBar" Minimum="0" Maximum="100" Height="25"/>
+        <TextBlock Grid.Row="6" x:Name="m_progressBarMsg" Background="Transparent" Foreground="White" FontSize="15" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+        <!-- 7. 余白 -->
+        
+        <!-- 8. ログ表示 -->
+        <TextBox Grid.Row="8" x:Name="m_log" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
 
     </Grid>
 </Window>

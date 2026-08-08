@@ -341,5 +341,30 @@ namespace w2e
         }
 
 
+        /// <summary>
+        /// 終了メニュー押下時の処理
+        /// </summary>
+        /// <param name="a_sender">イベント発生元オブジェクト。</param>
+        /// <param name="a_args">イベントデータ。</param>
+        private void MenuExitClick( object a_sender, RoutedEventArgs a_args )
+        {
+            this.Close();
+        }
+
+
+        /// <summary>
+        /// バージョン情報ダイアログを表示する。
+        /// </summary>
+        /// <param name="a_sender">イベント発生元オブジェクト。</param>
+        /// <param name="a_args">イベントデータ。</param>
+        private void MenuVersionClick( object a_sender, RoutedEventArgs a_args )
+        {
+            //AboutWindowを表示する
+            var aboutWindow = new AboutWindow();
+            aboutWindow.Owner = this;
+            aboutWindow.ShowDialog();
+        }
+
+
     }
 }
