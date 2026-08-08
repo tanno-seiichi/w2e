@@ -96,11 +96,13 @@ namespace w2e.word
             foreach( DocumentFormat.OpenXml.Vml.ImageData imageData in imageDataList )
             {
                 /* mc:AlternateContent の mc:Fallback（後方互換用のVML表現）内にある画像は、
-                 * 対応する mc:Choice 側に現代形式（w:drawing）の画像が存在する前提で、Wordでは表示に使われない。
-                 * これも取得してしまうと、GetDrawingImages()で取得済みの画像と同じものが二重にカウントされてしまうため、
-                 * mc:Fallback内の画像は除外する。
+                 * 対応する mc:Choice 側に「実際に解決できる」現代形式（w:drawing）の画像がある場合に限り、
+                 * GetDrawingImages()で取得済みの画像と重複するため除外する。
+                 * 万一 mc:Choice 側の画像が壊れている・取得できない文書だった場合に画像自体を失わないよう、
+                 * Choice側が使えないときはVML側をそのまま採用する。
                  */
-                if( IsInsideAlternateContentFallback( imageData ) )
+                if( IsInsideAlternateContentFallback( imageData ) &&
+                    HasUsableChoiceDrawing( imageData, a_mainDocumentPart ) )
                 {
                     continue;
                 }
@@ -137,6 +139,60 @@ namespace w2e.word
             for( DocumentFormat.OpenXml.OpenXmlElement current = a_element.Parent; null != current; current = current.Parent )
             {
                 if( current is DocumentFormat.OpenXml.AlternateContentFallback )
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+
+        /// <summary>
+        /// mc:Fallback内の要素に対して、同じ mc:AlternateContent の mc:Choice 側に
+        /// 実際に画像データを解決できる w:drawing が存在するかどうかを判定する。
+        /// </summary>
+        /// <param name="a_fallbackElement">mc:Fallback内の要素（VMLのImageDataなど）</param>
+        /// <param name="a_mainDocumentPart">MainDocumentPart</param>
+        /// <returns>mc:Choice側に解決可能な画像がある場合はtrue</returns>
+        private static bool HasUsableChoiceDrawing( DocumentFormat.OpenXml.OpenXmlElement a_fallbackElement, MainDocumentPart a_mainDocumentPart )
+        {
+            /* この要素を含む mc:AlternateContent を探す */
+            DocumentFormat.OpenXml.AlternateContent alternateContent = null;
+            for( DocumentFormat.OpenXml.OpenXmlElement current = a_fallbackElement.Parent; null != current; current = current.Parent )
+            {
+                if( current is DocumentFormat.OpenXml.AlternateContent ac )
+                {
+                    alternateContent = ac;
+                    break;
+                }
+            }
+
+            if( null == alternateContent )
+            {
+                /* mc:AlternateContentが見つからない場合は判定できないため、Choice側は無いものとして扱う */
+                return false;
+            }
+
+            DocumentFormat.OpenXml.AlternateContentChoice choice =
+                alternateContent.GetFirstChild<DocumentFormat.OpenXml.AlternateContentChoice>();
+
+            if( null == choice )
+            {
+                return false;
+            }
+
+            /* mc:Choice側にあるw:drawingのうち、1つでも画像データを実際に解決できればtrueとする */
+            foreach( Word.Drawing drawing in choice.Descendants<Word.Drawing>() )
+            {
+                Blip blip = GetBlip( drawing );
+
+                if( null == blip || null == blip.Embed )
+                {
+                    continue;
+                }
+
+                if( a_mainDocumentPart.GetPartById( blip.Embed.Value ) is ImagePart )
                 {
                     return true;
                 }
