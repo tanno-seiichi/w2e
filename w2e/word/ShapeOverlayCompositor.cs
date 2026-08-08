@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -24,6 +25,7 @@ namespace w2e.word
         private static readonly XNamespace WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
         private static readonly XNamespace A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
         private static readonly XNamespace WPS_NS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape";
+        private static readonly XNamespace W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
         /// <summary>
         /// EMU（English Metric Units）から96DPI換算のピクセル数への変換係数
@@ -62,148 +64,255 @@ namespace w2e.word
                     }
                 }
 
-                /* 画像が1枚、かつ重なる図形が1つ以上あるケースのみ合成対象とする */
-                if( 1 != pictureDrawings.Count || 0 == shapeDrawings.Count )
+                if( 0 == shapeDrawings.Count )
                 {
+                    /* 重ねる図形が無ければ合成の意味が無いため対象外とする（通常の画像抽出に任せる） */
                     return null;
                 }
 
-                Word.Drawing pictureDrawing = pictureDrawings[0];
-                Blip pictureBlip = WordImageHelper.GetBlip( pictureDrawing );
-                ImagePart imagePart = a_mainDocumentPart.GetPartById( pictureBlip.Embed.Value ) as ImagePart;
-
-                if( null == imagePart )
+                if( 1 == pictureDrawings.Count )
                 {
-                    return null;
+                    /* 画像1枚 + 図形1つ以上 → 画像に図形を重ねて合成する */
+                    return ComposeWithPicture( a_mainDocumentPart, a_paragraph, pictureDrawings[0], shapeDrawings );
                 }
 
-                byte[] baseImageBytes = WordImageHelper.GetImageData( imagePart );
-
-                /* 画像自身の表示サイズ(EMU)を取得する（図形の位置をこの画像上の座標に変換するための基準にする） */
-                WordImageHelper.GetImageSize( pictureDrawing, out long pictureWidthEmu, out long pictureHeightEmu );
-
-                if( 0 >= pictureWidthEmu || 0 >= pictureHeightEmu )
+                if( 0 == pictureDrawings.Count )
                 {
-                    return null;
+                    /* 画像が無く、図形のみ → 図形だけを1枚の画像として合成する */
+                    return ComposeShapesOnly( a_mainDocumentPart, a_paragraph, shapeDrawings );
                 }
 
-                /* ベースとなる画像を読み込む */
-                BitmapImage baseBitmap = new BitmapImage();
-                using( MemoryStream ms = new MemoryStream( baseImageBytes ) )
-                {
-                    baseBitmap.BeginInit();
-                    baseBitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    baseBitmap.StreamSource = ms;
-                    baseBitmap.EndInit();
-                }
-                baseBitmap.Freeze();
-
-                int imagePixelWidth = baseBitmap.PixelWidth;
-                int imagePixelHeight = baseBitmap.PixelHeight;
-
-                /* 図形の位置(EMU)を、画像のピクセル座標に変換するための倍率
-                 * （図形はWord上で画像と同じ段落基準の座標系に配置されているという前提で計算する）
-                 */
-                double scaleX = imagePixelWidth / (double)pictureWidthEmu;
-                double scaleY = imagePixelHeight / (double)pictureHeightEmu;
-
-                /* 図形の情報を解析する */
-                List<ShapeInfo> shapeInfoList = new List<ShapeInfo>();
-                foreach( Word.Drawing shapeDrawing in shapeDrawings )
-                {
-                    ShapeInfo info = ParseShape( shapeDrawing );
-                    if( null != info )
-                    {
-                        shapeInfoList.Add( info );
-                    }
-                }
-
-                if( 0 == shapeInfoList.Count )
-                {
-                    /* 図形を1つも解析できなかった場合は合成の意味が無いため対象外とする */
-                    return null;
-                }
-
-                /* 図形の水平位置(relativeFrom="column")は段（ページの版面）を基準とした絶対座標だが、
-                 * 画像はインライン画像として段落内に配置されているため、段落に左インデントが設定されていると
-                 * 画像はその分だけ右にずれて表示される。図形の位置をこのインデント分だけ補正しないと、
-                 * 画像に対して図形が実際より右にずれて見えてしまう。
-                 */
-                double indentEmu = GetLeftIndentEmu( a_paragraph );
-                if( 0 != indentEmu )
-                {
-                    foreach( ShapeInfo shape in shapeInfoList )
-                    {
-                        shape.XEmu -= indentEmu;
-                    }
-                }
-
-                /* 図形は画像の外側にはみ出して配置されていることがある（Word上ではページの余白部分に
-                 * はみ出す形で違和感なく表示される）。はみ出した部分が切れないよう、画像と全ての図形を
-                 * 包含する外接矩形（EMU）を求め、その大きさに合わせてキャンバスを拡張する。
-                 */
-                double unionMinXEmu = 0;
-                double unionMinYEmu = 0;
-                double unionMaxXEmu = pictureWidthEmu;
-                double unionMaxYEmu = pictureHeightEmu;
-
-                foreach( ShapeInfo shape in shapeInfoList )
-                {
-                    unionMinXEmu = Math.Min( unionMinXEmu, shape.XEmu );
-                    unionMinYEmu = Math.Min( unionMinYEmu, shape.YEmu );
-                    unionMaxXEmu = Math.Max( unionMaxXEmu, shape.XEmu + shape.CxEmu );
-                    unionMaxYEmu = Math.Max( unionMaxYEmu, shape.YEmu + shape.CyEmu );
-                }
-
-                /* 画像原点(0,0)がキャンバス内のどこに来るかのオフセット（ピクセル） */
-                double originOffsetXPx = -unionMinXEmu * scaleX;
-                double originOffsetYPx = -unionMinYEmu * scaleY;
-
-                int canvasWidth = (int)Math.Ceiling( ( unionMaxXEmu - unionMinXEmu ) * scaleX );
-                int canvasHeight = (int)Math.Ceiling( ( unionMaxYEmu - unionMinYEmu ) * scaleY );
-
-                /* テーマの配色（スキーム色の解決に使用） */
-                Dictionary<string, string> themeColors = LoadThemeColors( a_mainDocumentPart );
-
-                /* 描画する */
-                DrawingVisual visual = new DrawingVisual();
-                using( DrawingContext dc = visual.RenderOpen() )
-                {
-                    dc.DrawImage( baseBitmap, new Rect( originOffsetXPx, originOffsetYPx, imagePixelWidth, imagePixelHeight ) );
-
-                    foreach( ShapeInfo shape in shapeInfoList )
-                    {
-                        DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
-                    }
-                }
-
-                RenderTargetBitmap rtb = new RenderTargetBitmap( canvasWidth, canvasHeight, 96, 96, PixelFormats.Pbgra32 );
-                rtb.Render( visual );
-
-                PngBitmapEncoder encoder = new PngBitmapEncoder();
-                encoder.Frames.Add( BitmapFrame.Create( rtb ) );
-
-                byte[] composedBytes;
-                using( MemoryStream ms = new MemoryStream() )
-                {
-                    encoder.Save( ms );
-                    composedBytes = ms.ToArray();
-                }
-
-                WordImageData result = new WordImageData();
-                result.imageData = composedBytes;
-                result.contentType = "image/png";
-                result.relationshipId = "composed:" + pictureBlip.Embed.Value;
-                result.widthEmu = (long)Math.Round( unionMaxXEmu - unionMinXEmu );
-                result.heightEmu = (long)Math.Round( unionMaxYEmu - unionMinYEmu );
-                result.altText = string.Empty;
-
-                return result;
+                /* 画像が複数ある場合は、どの画像に図形が重なっているか特定できないため対象外とする */
+                return null;
             }
             catch
             {
                 /* 合成に失敗した場合は、通常の画像抽出処理にフォールバックする */
                 return null;
+            }
+        }
+
+
+        /// <summary>
+        /// 画像1枚に、重なっている図形を合成する。
+        /// </summary>
+        private static WordImageData ComposeWithPicture( MainDocumentPart a_mainDocumentPart, Word.Paragraph a_paragraph, Word.Drawing a_pictureDrawing, List<Word.Drawing> a_shapeDrawings )
+        {
+            Blip pictureBlip = WordImageHelper.GetBlip( a_pictureDrawing );
+            ImagePart imagePart = a_mainDocumentPart.GetPartById( pictureBlip.Embed.Value ) as ImagePart;
+
+            if( null == imagePart )
+            {
+                return null;
+            }
+
+            byte[] baseImageBytes = WordImageHelper.GetImageData( imagePart );
+
+            /* 画像自身の表示サイズ(EMU)を取得する（図形の位置をこの画像上の座標に変換するための基準にする） */
+            WordImageHelper.GetImageSize( a_pictureDrawing, out long pictureWidthEmu, out long pictureHeightEmu );
+
+            if( 0 >= pictureWidthEmu || 0 >= pictureHeightEmu )
+            {
+                return null;
+            }
+
+            /* ベースとなる画像を読み込む */
+            BitmapImage baseBitmap = new BitmapImage();
+            using( MemoryStream ms = new MemoryStream( baseImageBytes ) )
+            {
+                baseBitmap.BeginInit();
+                baseBitmap.CacheOption = BitmapCacheOption.OnLoad;
+                baseBitmap.StreamSource = ms;
+                baseBitmap.EndInit();
+            }
+            baseBitmap.Freeze();
+
+            int imagePixelWidth = baseBitmap.PixelWidth;
+            int imagePixelHeight = baseBitmap.PixelHeight;
+
+            /* 図形の位置(EMU)を、画像のピクセル座標に変換するための倍率
+             * （図形はWord上で画像と同じ段落基準の座標系に配置されているという前提で計算する）
+             */
+            double scaleX = imagePixelWidth / (double)pictureWidthEmu;
+            double scaleY = imagePixelHeight / (double)pictureHeightEmu;
+
+            /* 図形の情報を解析する */
+            List<ShapeInfo> shapeInfoList = ParseShapes( a_shapeDrawings );
+
+            if( 0 == shapeInfoList.Count )
+            {
+                /* 図形を1つも解析できなかった場合は合成の意味が無いため対象外とする */
+                return null;
+            }
+
+            /* 図形の水平位置(relativeFrom="column")は段（ページの版面）を基準とした絶対座標だが、
+             * 画像はインライン画像として段落内に配置されているため、段落に左インデントが設定されていると
+             * 画像はその分だけ右にずれて表示される。図形の位置をこのインデント分だけ補正しないと、
+             * 画像に対して図形が実際より右にずれて見えてしまう。
+             */
+            double indentEmu = GetLeftIndentEmu( a_paragraph );
+            if( 0 != indentEmu )
+            {
+                foreach( ShapeInfo shape in shapeInfoList )
+                {
+                    shape.XEmu -= indentEmu;
+                }
+            }
+
+            /* 図形は画像の外側にはみ出して配置されていることがある（Word上ではページの余白部分に
+             * はみ出す形で違和感なく表示される）。はみ出した部分が切れないよう、画像と全ての図形を
+             * 包含する外接矩形（EMU）を求め、その大きさに合わせてキャンバスを拡張する。
+             */
+            double unionMinXEmu = 0;
+            double unionMinYEmu = 0;
+            double unionMaxXEmu = pictureWidthEmu;
+            double unionMaxYEmu = pictureHeightEmu;
+
+            foreach( ShapeInfo shape in shapeInfoList )
+            {
+                unionMinXEmu = Math.Min( unionMinXEmu, shape.XEmu );
+                unionMinYEmu = Math.Min( unionMinYEmu, shape.YEmu );
+                unionMaxXEmu = Math.Max( unionMaxXEmu, shape.XEmu + shape.CxEmu );
+                unionMaxYEmu = Math.Max( unionMaxYEmu, shape.YEmu + shape.CyEmu );
+            }
+
+            /* 画像原点(0,0)がキャンバス内のどこに来るかのオフセット（ピクセル） */
+            double originOffsetXPx = -unionMinXEmu * scaleX;
+            double originOffsetYPx = -unionMinYEmu * scaleY;
+
+            int canvasWidth = (int)Math.Ceiling( ( unionMaxXEmu - unionMinXEmu ) * scaleX );
+            int canvasHeight = (int)Math.Ceiling( ( unionMaxYEmu - unionMinYEmu ) * scaleY );
+
+            /* テーマの配色（スキーム色の解決に使用） */
+            Dictionary<string, string> themeColors = LoadThemeColors( a_mainDocumentPart );
+
+            /* 描画する */
+            DrawingVisual visual = new DrawingVisual();
+            using( DrawingContext dc = visual.RenderOpen() )
+            {
+                dc.DrawImage( baseBitmap, new Rect( originOffsetXPx, originOffsetYPx, imagePixelWidth, imagePixelHeight ) );
+
+                foreach( ShapeInfo shape in shapeInfoList )
+                {
+                    DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
+                }
+            }
+
+            byte[] composedBytes = RenderToPng( visual, canvasWidth, canvasHeight );
+
+            WordImageData result = new WordImageData();
+            result.imageData = composedBytes;
+            result.contentType = "image/png";
+            result.relationshipId = "composed:" + pictureBlip.Embed.Value;
+            result.widthEmu = (long)Math.Round( unionMaxXEmu - unionMinXEmu );
+            result.heightEmu = (long)Math.Round( unionMaxYEmu - unionMinYEmu );
+            result.altText = string.Empty;
+
+            return result;
+        }
+
+
+        /// <summary>
+        /// 画像を伴わず、図形のみが配置されているケースで、図形だけを1枚の画像として合成する。
+        /// </summary>
+        private static WordImageData ComposeShapesOnly( MainDocumentPart a_mainDocumentPart, Word.Paragraph a_paragraph, List<Word.Drawing> a_shapeDrawings )
+        {
+            List<ShapeInfo> shapeInfoList = ParseShapes( a_shapeDrawings );
+
+            if( 0 == shapeInfoList.Count )
+            {
+                return null;
+            }
+
+            /* 図形はベクター情報のみで解像度の基準となる画像が無いため、96DPI（1ピクセル=9525EMU）を基準に描画する。
+             * これはWord/Office製品が既定で使用する画面表示解像度で、実寸に近いサイズで表示される。
+             */
+            double scaleX = 1.0 / EMU_PER_PIXEL;
+            double scaleY = 1.0 / EMU_PER_PIXEL;
+
+            /* 図形のみの場合、画像との位置合わせが不要なためインデント補正は行わず、
+             * 図形同士の相対位置（段基準の絶対座標）をそのまま使用する。
+             */
+            double unionMinXEmu = double.MaxValue;
+            double unionMinYEmu = double.MaxValue;
+            double unionMaxXEmu = double.MinValue;
+            double unionMaxYEmu = double.MinValue;
+
+            foreach( ShapeInfo shape in shapeInfoList )
+            {
+                unionMinXEmu = Math.Min( unionMinXEmu, shape.XEmu );
+                unionMinYEmu = Math.Min( unionMinYEmu, shape.YEmu );
+                unionMaxXEmu = Math.Max( unionMaxXEmu, shape.XEmu + shape.CxEmu );
+                unionMaxYEmu = Math.Max( unionMaxYEmu, shape.YEmu + shape.CyEmu );
+            }
+
+            double originOffsetXPx = -unionMinXEmu * scaleX;
+            double originOffsetYPx = -unionMinYEmu * scaleY;
+
+            int canvasWidth = Math.Max( 1, (int)Math.Ceiling( ( unionMaxXEmu - unionMinXEmu ) * scaleX ) );
+            int canvasHeight = Math.Max( 1, (int)Math.Ceiling( ( unionMaxYEmu - unionMinYEmu ) * scaleY ) );
+
+            Dictionary<string, string> themeColors = LoadThemeColors( a_mainDocumentPart );
+
+            /* 背景は付けず透過のまま描画する（写真などの土台が無いため） */
+            DrawingVisual visual = new DrawingVisual();
+            using( DrawingContext dc = visual.RenderOpen() )
+            {
+                foreach( ShapeInfo shape in shapeInfoList )
+                {
+                    DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
+                }
+            }
+
+            byte[] composedBytes = RenderToPng( visual, canvasWidth, canvasHeight );
+
+            WordImageData result = new WordImageData();
+            result.imageData = composedBytes;
+            result.contentType = "image/png";
+            result.relationshipId = "composed-shapes:" + a_paragraph.GetHashCode();
+            result.widthEmu = (long)Math.Round( unionMaxXEmu - unionMinXEmu );
+            result.heightEmu = (long)Math.Round( unionMaxYEmu - unionMinYEmu );
+            result.altText = string.Empty;
+
+            return result;
+        }
+
+
+        /// <summary>
+        /// DrawingのリストからShapeInfoを解析する（解析できなかった図形は結果に含めない）。
+        /// </summary>
+        private static List<ShapeInfo> ParseShapes( List<Word.Drawing> a_shapeDrawings )
+        {
+            List<ShapeInfo> shapeInfoList = new List<ShapeInfo>();
+
+            foreach( Word.Drawing shapeDrawing in a_shapeDrawings )
+            {
+                ShapeInfo info = ParseShape( shapeDrawing );
+                if( null != info )
+                {
+                    shapeInfoList.Add( info );
+                }
+            }
+
+            return shapeInfoList;
+        }
+
+
+        /// <summary>
+        /// DrawingVisualをPNGバイト列に変換する。
+        /// </summary>
+        private static byte[] RenderToPng( DrawingVisual a_visual, int a_width, int a_height )
+        {
+            RenderTargetBitmap rtb = new RenderTargetBitmap( a_width, a_height, 96, 96, PixelFormats.Pbgra32 );
+            rtb.Render( a_visual );
+
+            PngBitmapEncoder encoder = new PngBitmapEncoder();
+            encoder.Frames.Add( BitmapFrame.Create( rtb ) );
+
+            using( MemoryStream ms = new MemoryStream() )
+            {
+                encoder.Save( ms );
+                return ms.ToArray();
             }
         }
 
@@ -269,6 +378,9 @@ namespace w2e.word
             public double LineWidthEmu;
             public bool HeadArrow;
             public bool TailArrow;
+            public string Text;
+            public string TextColorHex;
+            public double TextFontSizePt = 10.5;
         }
 
 
@@ -330,7 +442,72 @@ namespace w2e.word
                 info.TailArrow = IsArrowMarker( ln.Element( A_NS + "tailEnd" ) );
             }
 
+            /* 図形内のテキスト（wps:txbx内の文字列）を取得する */
+            ParseShapeText( wsp, info );
+
             return info;
+        }
+
+
+        /// <summary>
+        /// 図形（wps:wsp）内のテキストボックス（wps:txbx）から、表示テキスト・文字色・フォントサイズを取得する。
+        /// テキストが無い場合はShapeInfo.Textをnullのままにする。
+        /// </summary>
+        private static void ParseShapeText( XElement a_wsp, ShapeInfo a_info )
+        {
+            XElement txbxContent = a_wsp?.Element( WPS_NS + "txbx" )?.Element( W_NS + "txbxContent" );
+            if( null == txbxContent )
+            {
+                return;
+            }
+
+            /* 段落ごとの文字列を改行で連結する */
+            List<string> paragraphTexts = new List<string>();
+            XElement firstRunProperties = null;
+
+            foreach( XElement paragraph in txbxContent.Elements( W_NS + "p" ) )
+            {
+                StringBuilder paragraphText = new StringBuilder();
+
+                foreach( XElement run in paragraph.Elements( W_NS + "r" ) )
+                {
+                    if( null == firstRunProperties )
+                    {
+                        firstRunProperties = run.Element( W_NS + "rPr" );
+                    }
+
+                    foreach( XElement textElement in run.Elements( W_NS + "t" ) )
+                    {
+                        paragraphText.Append( (string)textElement );
+                    }
+                }
+
+                paragraphTexts.Add( paragraphText.ToString() );
+            }
+
+            string combinedText = string.Join( Environment.NewLine, paragraphTexts ).Trim();
+            if( string.IsNullOrEmpty( combinedText ) )
+            {
+                return;
+            }
+
+            a_info.Text = combinedText;
+
+            /* 文字色（先頭の実行から取得。無ければ既定色を描画時に使用する） */
+            XElement colorElement = firstRunProperties?.Element( W_NS + "color" );
+            string colorVal = colorElement?.Attribute( W_NS + "val" )?.Value;
+            if( !string.IsNullOrEmpty( colorVal ) && !"auto".Equals( colorVal, StringComparison.OrdinalIgnoreCase ) )
+            {
+                a_info.TextColorHex = colorVal;
+            }
+
+            /* フォントサイズ（半ポイント単位） */
+            XElement sizeElement = firstRunProperties?.Element( W_NS + "sz" );
+            string sizeVal = sizeElement?.Attribute( W_NS + "val" )?.Value;
+            if( !string.IsNullOrEmpty( sizeVal ) && double.TryParse( sizeVal, out double halfPoints ) )
+            {
+                a_info.TextFontSizePt = halfPoints / 2.0;
+            }
         }
 
 
@@ -434,6 +611,61 @@ namespace w2e.word
                 /* rect, roundRect およびその他未対応の図形は矩形として描画する */
                 a_dc.DrawRectangle( fillBrush, pen, bounds );
             }
+
+            /* 図形内にテキストが設定されている場合は、図形の中央に描画する（コネクタ／矢印には描画しない） */
+            if( !isConnector && !string.IsNullOrEmpty( a_shape.Text ) )
+            {
+                DrawShapeText( a_dc, a_shape, bounds, a_themeColors );
+            }
+        }
+
+
+        /// <summary>
+        /// 図形内のテキストを、図形の中央に収まるように描画する。
+        /// </summary>
+        private static void DrawShapeText( DrawingContext a_dc, ShapeInfo a_shape, Rect a_bounds, Dictionary<string, string> a_themeColors )
+        {
+            Brush textBrush = ResolveBrush( a_shape.TextColorHex, 1.0, a_themeColors ) ?? Brushes.Black;
+
+            /* フォントサイズ(pt)をピクセルに変換する（1pt = 96/72 px） */
+            double fontSizePx = a_shape.TextFontSizePt * ( 96.0 / 72.0 );
+            if( 6 > fontSizePx )
+            {
+                fontSizePx = 6;
+            }
+
+            FormattedText formattedText = new FormattedText(
+                a_shape.Text,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                new Typeface( new FontFamily( "Meiryo UI, Yu Gothic UI, Segoe UI" ), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal ),
+                fontSizePx,
+                textBrush,
+                96.0 );
+
+            formattedText.TextAlignment = TextAlignment.Center;
+
+            /* 図形の高さを超える場合は、収まるようにフォントサイズを縮小する */
+            if( formattedText.Height > a_bounds.Height && 0 < a_bounds.Height )
+            {
+                double shrinkRatio = a_bounds.Height / formattedText.Height;
+                double adjustedSizePx = Math.Max( 6, fontSizePx * shrinkRatio );
+
+                formattedText = new FormattedText(
+                    a_shape.Text,
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface( new FontFamily( "Meiryo UI, Yu Gothic UI, Segoe UI" ), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal ),
+                    adjustedSizePx,
+                    textBrush,
+                    96.0 );
+                formattedText.TextAlignment = TextAlignment.Center;
+            }
+
+            formattedText.MaxTextWidth = Math.Max( 1, a_bounds.Width );
+
+            Point origin = new Point( a_bounds.X, a_bounds.Y + Math.Max( 0, ( a_bounds.Height - formattedText.Height ) / 2 ) );
+            a_dc.DrawText( formattedText, origin );
         }
 
 

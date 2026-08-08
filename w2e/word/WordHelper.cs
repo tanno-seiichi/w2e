@@ -276,6 +276,26 @@ namespace w2e.word
 
 
         /// <summary>
+        /// 指定した要素が、図形・画像（w:drawing）の内側にあるかどうかを判定する。
+        /// 図形に添えられたラベル文字列などを、段落本文と区別するために使用する。
+        /// </summary>
+        /// <param name="a_element">判定対象の要素</param>
+        /// <returns>w:drawingの内側にある場合はtrue</returns>
+        private static bool IsInsideDrawing( OpenXmlElement a_element )
+        {
+            for( OpenXmlElement current = a_element.Parent; null != current; current = current.Parent )
+            {
+                if( current is Drawing )
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+
+        /// <summary>
         /// OpenXml要素からフィールドコードを考慮してユーザーに表示されるテキストを抽出する
         /// </summary>
         /// <param name="a_element">OpenXml要素</param>
@@ -287,6 +307,8 @@ namespace w2e.word
              * ・SEQフィールドおよびSTYLEREFフィールドを識別
              * ・SEQフィールドの連番表示時に必要な区切り文字（"-"）を補完
              * ・段落内の改行（Shift+Enterによる改行）を改行コードに変換
+             * ・図形（w:drawing）内のテキスト（矢印や強調枠に添えられたラベル等）は、
+             *   段落本文とは別に図形自体の一部として扱うため対象から除外する
              * 注意点：
              * ・フィールドコード自体は出力せず、表示結果のみを対象とします
              * ・複雑なフィールド構造（ネストなど）には完全対応していません
@@ -296,6 +318,12 @@ namespace w2e.word
             string currentField = null;
             foreach( OpenXmlElement element in a_element.Descendants() )
             {
+                /* 図形（w:drawing）の内側にある要素は、段落本文としては扱わない */
+                if( IsInsideDrawing( element ) )
+                {
+                    continue;
+                }
+
                 /* フィールド開始・終了 */
                 FieldChar fieldChar = element as FieldChar;
                 if( null != fieldChar )
