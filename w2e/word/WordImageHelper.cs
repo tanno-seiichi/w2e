@@ -34,8 +34,18 @@ namespace w2e.word
                 throw new ArgumentNullException( nameof( a_paragraph ) );
             }
 
-            /* Drawing画像を取得する */
-            GetDrawingImages( a_mainDocumentPart, a_paragraph, imageList );
+            /* 画像に図形（矢印・強調枠など）が重なっている場合は、1枚に合成した画像として取得する */
+            WordImageData composedImage = ShapeOverlayCompositor.TryCompose( a_mainDocumentPart, a_paragraph );
+
+            if( null != composedImage )
+            {
+                imageList.Add( composedImage );
+            }
+            else
+            {
+                /* Drawing画像を取得する */
+                GetDrawingImages( a_mainDocumentPart, a_paragraph, imageList );
+            }
 
             /* VML画像を取得する（旧.doc形式の画像保持方式に対応） */
             GetVmlImages( a_mainDocumentPart, a_paragraph, imageList );
@@ -259,7 +269,7 @@ namespace w2e.word
         /// </summary>
         /// <param name="a_imagePart">ImagePart</param>
         /// <returns>画像データ</returns>
-        private static byte[] GetImageData( ImagePart a_imagePart )
+        internal static byte[] GetImageData( ImagePart a_imagePart )
         {
             /* 引数チェック */
             if( null == a_imagePart )
@@ -284,7 +294,7 @@ namespace w2e.word
         /// </summary>
         /// <param name="a_imagePart">ImagePart</param>
         /// <returns>コンテンツタイプ</returns>
-        private static string GetContentType( ImagePart a_imagePart )
+        internal static string GetContentType( ImagePart a_imagePart )
         {
             /* 引数チェック */
             if( null == a_imagePart )
@@ -303,7 +313,7 @@ namespace w2e.word
         /// <param name="a_drawing">Drawing</param>
         /// <param name="a_widthEmu">画像幅（EMU）</param>
         /// <param name="a_heightEmu">画像高さ（EMU）</param>
-        private static void GetImageSize( Word.Drawing a_drawing, out long a_widthEmu, out long a_heightEmu )
+        internal static void GetImageSize( Word.Drawing a_drawing, out long a_widthEmu, out long a_heightEmu )
         {
             /* 初期化 */
             a_widthEmu = 0;
@@ -365,7 +375,7 @@ namespace w2e.word
         /// </summary>
         /// <param name="a_drawing">Drawing</param>
         /// <returns>Blip。取得できない場合はnull。</returns>
-        private static Blip GetBlip( Word.Drawing a_drawing )
+        internal static Blip GetBlip( Word.Drawing a_drawing )
         {
             if( null == a_drawing )
             {
