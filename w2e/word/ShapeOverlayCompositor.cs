@@ -98,14 +98,14 @@ namespace w2e.word
                 }
                 baseBitmap.Freeze();
 
-                int canvasWidth = baseBitmap.PixelWidth;
-                int canvasHeight = baseBitmap.PixelHeight;
+                int imagePixelWidth = baseBitmap.PixelWidth;
+                int imagePixelHeight = baseBitmap.PixelHeight;
 
-                /* 図形の位置(EMU)を、この画像のピクセル座標に変換するための倍率
+                /* 図形の位置(EMU)を、画像のピクセル座標に変換するための倍率
                  * （図形はWord上で画像と同じ段落基準の座標系に配置されているという前提で計算する）
                  */
-                double scaleX = canvasWidth / (double)pictureWidthEmu;
-                double scaleY = canvasHeight / (double)pictureHeightEmu;
+                double scaleX = imagePixelWidth / (double)pictureWidthEmu;
+                double scaleY = imagePixelHeight / (double)pictureHeightEmu;
 
                 /* 図形の情報を解析する */
                 List<ShapeInfo> shapeInfoList = new List<ShapeInfo>();
@@ -124,6 +124,44 @@ namespace w2e.word
                     return null;
                 }
 
+                /* 図形の水平位置(relativeFrom="column")は段（ページの版面）を基準とした絶対座標だが、
+                 * 画像はインライン画像として段落内に配置されているため、段落に左インデントが設定されていると
+                 * 画像はその分だけ右にずれて表示される。図形の位置をこのインデント分だけ補正しないと、
+                 * 画像に対して図形が実際より右にずれて見えてしまう。
+                 */
+                double indentEmu = GetLeftIndentEmu( a_paragraph );
+                if( 0 != indentEmu )
+                {
+                    foreach( ShapeInfo shape in shapeInfoList )
+                    {
+                        shape.XEmu -= indentEmu;
+                    }
+                }
+
+                /* 図形は画像の外側にはみ出して配置されていることがある（Word上ではページの余白部分に
+                 * はみ出す形で違和感なく表示される）。はみ出した部分が切れないよう、画像と全ての図形を
+                 * 包含する外接矩形（EMU）を求め、その大きさに合わせてキャンバスを拡張する。
+                 */
+                double unionMinXEmu = 0;
+                double unionMinYEmu = 0;
+                double unionMaxXEmu = pictureWidthEmu;
+                double unionMaxYEmu = pictureHeightEmu;
+
+                foreach( ShapeInfo shape in shapeInfoList )
+                {
+                    unionMinXEmu = Math.Min( unionMinXEmu, shape.XEmu );
+                    unionMinYEmu = Math.Min( unionMinYEmu, shape.YEmu );
+                    unionMaxXEmu = Math.Max( unionMaxXEmu, shape.XEmu + shape.CxEmu );
+                    unionMaxYEmu = Math.Max( unionMaxYEmu, shape.YEmu + shape.CyEmu );
+                }
+
+                /* 画像原点(0,0)がキャンバス内のどこに来るかのオフセット（ピクセル） */
+                double originOffsetXPx = -unionMinXEmu * scaleX;
+                double originOffsetYPx = -unionMinYEmu * scaleY;
+
+                int canvasWidth = (int)Math.Ceiling( ( unionMaxXEmu - unionMinXEmu ) * scaleX );
+                int canvasHeight = (int)Math.Ceiling( ( unionMaxYEmu - unionMinYEmu ) * scaleY );
+
                 /* テーマの配色（スキーム色の解決に使用） */
                 Dictionary<string, string> themeColors = LoadThemeColors( a_mainDocumentPart );
 
@@ -131,11 +169,11 @@ namespace w2e.word
                 DrawingVisual visual = new DrawingVisual();
                 using( DrawingContext dc = visual.RenderOpen() )
                 {
-                    dc.DrawImage( baseBitmap, new Rect( 0, 0, canvasWidth, canvasHeight ) );
+                    dc.DrawImage( baseBitmap, new Rect( originOffsetXPx, originOffsetYPx, imagePixelWidth, imagePixelHeight ) );
 
                     foreach( ShapeInfo shape in shapeInfoList )
                     {
-                        DrawShape( dc, shape, scaleX, scaleY, themeColors );
+                        DrawShape( dc, shape, scaleX, scaleY, originOffsetXPx, originOffsetYPx, themeColors );
                     }
                 }
 
@@ -156,8 +194,8 @@ namespace w2e.word
                 result.imageData = composedBytes;
                 result.contentType = "image/png";
                 result.relationshipId = "composed:" + pictureBlip.Embed.Value;
-                result.widthEmu = pictureWidthEmu;
-                result.heightEmu = pictureHeightEmu;
+                result.widthEmu = (long)Math.Round( unionMaxXEmu - unionMinXEmu );
+                result.heightEmu = (long)Math.Round( unionMaxYEmu - unionMinYEmu );
                 result.altText = string.Empty;
 
                 return result;
@@ -167,6 +205,39 @@ namespace w2e.word
                 /* 合成に失敗した場合は、通常の画像抽出処理にフォールバックする */
                 return null;
             }
+        }
+
+
+        /// <summary>
+        /// 段落に設定されている左インデントをEMU単位で取得する。
+        /// 図形の位置（段基準の絶対座標）と、段落内のインライン画像の表示位置とのズレを補正するために使用する。
+        /// </summary>
+        /// <param name="a_paragraph">対象段落</param>
+        /// <returns>左インデント（EMU）。設定が無い場合は0</returns>
+        private static double GetLeftIndentEmu( Word.Paragraph a_paragraph )
+        {
+            /* 1 twip (1/20 pt) = 635 EMU */
+            const double EMU_PER_TWIP = 635.0;
+
+            Word.Indentation indentation = a_paragraph.ParagraphProperties?.Indentation;
+            if( null == indentation )
+            {
+                return 0;
+            }
+
+            /* w:left（またはRTL対応のw:start）を優先する。数値変換できない場合は0とする */
+            string twipsText = indentation.Left?.Value ?? indentation.Start?.Value;
+            if( string.IsNullOrEmpty( twipsText ) )
+            {
+                return 0;
+            }
+
+            if( !double.TryParse( twipsText, out double twips ) )
+            {
+                return 0;
+            }
+
+            return twips * EMU_PER_TWIP;
         }
 
 
@@ -318,10 +389,10 @@ namespace w2e.word
         /// <summary>
         /// 図形1つを描画する。
         /// </summary>
-        private static void DrawShape( DrawingContext a_dc, ShapeInfo a_shape, double a_scaleX, double a_scaleY, Dictionary<string, string> a_themeColors )
+        private static void DrawShape( DrawingContext a_dc, ShapeInfo a_shape, double a_scaleX, double a_scaleY, double a_offsetXPx, double a_offsetYPx, Dictionary<string, string> a_themeColors )
         {
-            double x = a_shape.XEmu * a_scaleX;
-            double y = a_shape.YEmu * a_scaleY;
+            double x = a_shape.XEmu * a_scaleX + a_offsetXPx;
+            double y = a_shape.YEmu * a_scaleY + a_offsetYPx;
             double w = a_shape.CxEmu * a_scaleX;
             double h = a_shape.CyEmu * a_scaleY;
             Rect bounds = new Rect( x, y, Math.Max( 0, w ), Math.Max( 0, h ) );
