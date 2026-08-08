@@ -318,7 +318,11 @@ namespace w2e.converter
                                     string imagePath = Path.Combine( imageDirectory, imageFileName );
                                     File.WriteAllBytes( imagePath, imageData.imageData );
 
-                                    md.AddLine( "![" + imageFileName + "](images/" + imageFileName + ")" );
+                                    /* MarkDown標準の画像記法（![alt](src)）だと、ビューアのテーマによっては
+                                     * 画像だけ中央揃えで表示されてしまうことがあるため、
+                                     * imgタグに明示的なスタイルを指定して左寄せを固定する
+                                     */
+                                    md.AddLine( "<img src=\"images/" + imageFileName + "\" alt=\"" + imageFileName + "\" style=\"display:block;margin:0;\" />" );
                                 }
                             }
 
