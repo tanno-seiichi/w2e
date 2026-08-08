@@ -98,6 +98,12 @@ namespace w2e.converter
                      */
                     var headingStack = new List<(int Level, int Depth)>();
 
+                    /* 直前に処理した図形（矢印・強調枠等）の中に設定されていたテキストを保持する。
+                     * Word上でその図形の陰に隠れて表示されない「重複した通常の段落」を検出するために使用する
+                     * （詳細は使用箇所のコメントを参照）
+                     */
+                    var recentShapeTexts = new HashSet<string>();
+
                     /* 現在のファイル情報を初期化 */
                     string fileName = TOP_FILE_NAME;
                     string filePath = Path.Combine( a_outputDir, fileName );
@@ -139,6 +145,17 @@ namespace w2e.converter
 
                             string text = WordHelper.GetVisibleText(para);
                             string num = "";
+
+                            /* この段落のテキストが、直前に処理した図形（矢印や強調枠）の中のテキストと
+                             * 完全に一致する場合は、Word上でその図形の陰に隠れて表示されない「重複した通常の段落」
+                             * （コピー&ペースト等の残骸）とみなし、出力自体を丸ごとスキップする
+                             */
+                            if( a_outputImage_flg &&
+                                !string.IsNullOrEmpty( text ) &&
+                                recentShapeTexts.Contains( text.Trim() ) )
+                            {
+                                continue;
+                            }
 
                             bool isHeading_flg = WordHelper.NumberingTypeEn.HEADING == numberingType;
                             bool isList_flg = WordHelper.NumberingTypeEn.LIST == numberingType;
@@ -303,6 +320,23 @@ namespace w2e.converter
 
                                     md.AddLine( "![" + imageFileName + "](images/" + imageFileName + ")" );
                                 }
+                            }
+
+                            /* この段落の図形に設定されていたテキストを記録しておく（次の段落以降の重複判定に使用する）。
+                             * 図形が無かった場合は、直前までの記録をクリアして重複判定の対象範囲を限定する
+                             * （図形の直後に連続する段落だけを重複判定の対象とするため）
+                             */
+                            List<string> shapeTexts = a_outputImage_flg ? ShapeOverlayCompositor.GetShapeTexts( para ) : new List<string>();
+                            if( 0 < shapeTexts.Count )
+                            {
+                                foreach( string shapeText in shapeTexts )
+                                {
+                                    recentShapeTexts.Add( shapeText );
+                                }
+                            }
+                            else
+                            {
+                                recentShapeTexts.Clear();
                             }
 
                             /* 行出力（段落内改行(Shift+Enter)がある場合は複数行に分けて出力する） */

@@ -351,6 +351,43 @@ namespace w2e.word
 
 
         /// <summary>
+        /// 段落内の図形（wps:wsp）に設定されているテキストを一覧で取得する。
+        /// Wordの文書には、図形に重なる位置に、図形内のテキストと同じ内容の
+        /// 通常の段落（コピー&ペースト等の残骸で、図形の陰に隠れて表示されない段落）が
+        /// 紛れ込んでいることがあるため、そのような重複段落を検出するために使用する。
+        /// </summary>
+        /// <param name="a_paragraph">対象段落</param>
+        /// <returns>図形内に設定されているテキストの一覧（前後の空白は除去済み、空のものは含まない）</returns>
+        public static List<string> GetShapeTexts( Word.Paragraph a_paragraph )
+        {
+            List<string> result = new List<string>();
+
+            try
+            {
+                foreach( Word.Drawing drawing in a_paragraph.Descendants<Word.Drawing>() )
+                {
+                    if( !IsShapeDrawing( drawing ) )
+                    {
+                        continue;
+                    }
+
+                    ShapeInfo info = ParseShape( drawing );
+                    if( null != info && !string.IsNullOrEmpty( info.Text ) )
+                    {
+                        result.Add( info.Text.Trim() );
+                    }
+                }
+            }
+            catch
+            {
+                /* 取得に失敗した場合は、重複判定を行わないよう空のリストを返す */
+            }
+
+            return result;
+        }
+
+
+        /// <summary>
         /// Drawingが、画像を持たない「図形のみ」のDrawing（wps:wsp）かどうかを判定する。
         /// </summary>
         private static bool IsShapeDrawing( Word.Drawing a_drawing )
@@ -430,7 +467,24 @@ namespace w2e.word
             info.Preset = spPr.Element( A_NS + "prstGeom" )?.Attribute( "prst" )?.Value ?? "rect";
 
             /* 塗りつぶし */
-            (info.FillColorHex, info.FillAlpha) = ParseColor( spPr.Element( A_NS + "solidFill" ) );
+            XElement fillElement = spPr.Element( A_NS + "solidFill" );
+            if( null != fillElement )
+            {
+                (info.FillColorHex, info.FillAlpha) = ParseColor( fillElement );
+            }
+            else if( null == spPr.Element( A_NS + "noFill" ) )
+            {
+                /* spPrに直接の塗り指定が無い場合、Word標準の「図形のスタイル」機能で選択された
+                 * スタイル参照（wps:style/a:fillRef）から塗り色を解決する（明示的に「塗りつぶしなし」の場合を除く）
+                 */
+                XElement fillRef = wsp.Element( WPS_NS + "style" )?.Element( A_NS + "fillRef" );
+                string fillRefIdx = fillRef?.Attribute( "idx" )?.Value;
+
+                if( null != fillRef && "0" != fillRefIdx )
+                {
+                    (info.FillColorHex, info.FillAlpha) = ParseColor( fillRef );
+                }
+            }
 
             /* 線 */
             XElement ln = spPr.Element( A_NS + "ln" );
@@ -440,6 +494,19 @@ namespace w2e.word
                 (info.LineColorHex, info.LineAlpha) = ParseColor( ln.Element( A_NS + "solidFill" ) );
                 info.HeadArrow = IsArrowMarker( ln.Element( A_NS + "headEnd" ) );
                 info.TailArrow = IsArrowMarker( ln.Element( A_NS + "tailEnd" ) );
+            }
+            else
+            {
+                /* spPrに線の指定が無い場合も、同様にスタイル参照（wps:style/a:lnRef）からフォールバックする */
+                XElement lnRef = wsp.Element( WPS_NS + "style" )?.Element( A_NS + "lnRef" );
+                string lnRefIdx = lnRef?.Attribute( "idx" )?.Value;
+
+                if( null != lnRef && "0" != lnRefIdx )
+                {
+                    (info.LineColorHex, info.LineAlpha) = ParseColor( lnRef );
+                    /* スタイル参照のみで線幅が不明な場合は、細めの既定幅（0.75pt相当）を使用する */
+                    info.LineWidthEmu = 9525;
+                }
             }
 
             /* 図形内のテキスト（wps:txbx内の文字列）を取得する */

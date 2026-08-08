@@ -119,6 +119,12 @@ namespace w2e.converter
                          */
                         string lastChapterTitle = null;
 
+                        /* 直前に処理した図形（矢印・強調枠等）の中に設定されていたテキストを保持する。
+                         * Word上でその図形の陰に隠れて表示されない「重複した通常の段落」を検出するために使用する
+                         * （詳細は使用箇所のコメントを参照）
+                         */
+                        var recentShapeTexts = new HashSet<string>();
+
                         int total = body.Elements().Count();
                         int current = 0;
 
@@ -152,6 +158,17 @@ namespace w2e.converter
 
                                 CellData textData = new CellData() { text = WordHelper.GetVisibleText( para ) };
                                 CellData numData = new CellData() { text = "" };
+
+                                /* この段落のテキストが、直前に処理した図形（矢印や強調枠）の中のテキストと
+                                 * 完全に一致する場合は、Word上でその図形の陰に隠れて表示されない「重複した通常の段落」
+                                 * （コピー&ペースト等の残骸）とみなし、出力自体を丸ごとスキップする
+                                 */
+                                if( a_outputImage_flg &&
+                                    !string.IsNullOrEmpty( textData.text ) &&
+                                    recentShapeTexts.Contains( textData.text.Trim() ) )
+                                {
+                                    continue;
+                                }
 
                                 bool isHeading_flg = WordHelper.NumberingTypeEn.HEADING == numberingType;
                                 bool isList_flg = WordHelper.NumberingTypeEn.LIST == numberingType;
@@ -322,6 +339,23 @@ namespace w2e.converter
                                     /* 画像を貼付け、画像の高さ分の行を確保する（0始まりの行番号を渡す） */
                                     int usedRows = ExcelHelper.AddImage( wsPart, ref drawingsPart, ref imageId, imageData, row - 1, IMAGE_COLUMN_INDEX );
                                     row += usedRows;
+                                }
+
+                                /* この段落の図形に設定されていたテキストを記録しておく（次の段落以降の重複判定に使用する）。
+                                 * 図形が無かった場合は、直前までの記録をクリアして重複判定の対象範囲を限定する
+                                 * （図形の直後に連続する段落だけを重複判定の対象とするため）
+                                 */
+                                List<string> shapeTexts = a_outputImage_flg ? ShapeOverlayCompositor.GetShapeTexts( para ) : new List<string>();
+                                if( 0 < shapeTexts.Count )
+                                {
+                                    foreach( string shapeText in shapeTexts )
+                                    {
+                                        recentShapeTexts.Add( shapeText );
+                                    }
+                                }
+                                else
+                                {
+                                    recentShapeTexts.Clear();
                                 }
 
                                 /* 章番号・テキスト・画像のいずれも無い行を「空行」とみなす */

@@ -276,16 +276,23 @@ namespace w2e.word
 
 
         /// <summary>
-        /// 指定した要素が、図形・画像（w:drawing）の内側にあるかどうかを判定する。
+        /// 指定した要素が、図形・画像（w:drawing、および後方互換用のw:pict）の内側にあるかどうかを判定する。
         /// 図形に添えられたラベル文字列などを、段落本文と区別するために使用する。
+        /// mc:AlternateContentでは、現代形式(w:drawing／mc:Choice)と後方互換用のVML形式(w:pict／mc:Fallback)が
+        /// 兄弟要素として並んでおり、どちらにも同じテキストが含まれているため、両方を除外対象にする必要がある。
         /// </summary>
         /// <param name="a_element">判定対象の要素</param>
-        /// <returns>w:drawingの内側にある場合はtrue</returns>
+        /// <returns>w:drawingまたはw:pictの内側にある場合はtrue</returns>
         private static bool IsInsideDrawing( OpenXmlElement a_element )
         {
             for( OpenXmlElement current = a_element.Parent; null != current; current = current.Parent )
             {
                 if( current is Drawing )
+                {
+                    return true;
+                }
+
+                if( "pict" == current.LocalName )
                 {
                     return true;
                 }
