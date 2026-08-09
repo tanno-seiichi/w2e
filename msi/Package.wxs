@@ -3,7 +3,7 @@
   <Package
 	  Name="w2e"
 	  Manufacturer="tanno-seiichi"
-	  Version="1.14.1"
+	  Version="1.14.2"
 	  UpgradeCode="{A6C199CF-EF8C-474E-8AA2-FB83C94A07C1}"
 	  Scope="perMachine">
 	  
