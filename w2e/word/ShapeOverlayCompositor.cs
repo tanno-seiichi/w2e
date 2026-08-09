@@ -160,11 +160,14 @@ namespace w2e.word
             }
 
             /* テキストを含む図形は、実際のテキストサイズに合わせて図形の大きさを補正する
-             * （右端の文字切れや、図形の高さに対してテキストが小さすぎる場合の余白を防ぐため）
+             * （右端の文字切れや、図形の高さに対してテキストが小さすぎる場合の余白を防ぐため）。
+             * 高さの縮小（余分な空白の除去）は、他に図形が無い単独の図形の場合のみ行う
+             * （他の図形がある場合、高さを縮めるとその図形との相対位置がずれてしまうため）
              */
+            bool allowShrinkHeight = 1 == shapeInfoList.Count;
             foreach( ShapeInfo shape in shapeInfoList )
             {
-                FitShapeToContent( shape, scaleX, scaleY );
+                FitShapeToContent( shape, scaleX, scaleY, allowShrinkHeight );
             }
 
             /* 図形は画像の外側にはみ出して配置されていることがある（Word上ではページの余白部分に
@@ -269,11 +272,14 @@ namespace w2e.word
             double scaleY = 1.0 / EMU_PER_PIXEL;
 
             /* テキストを含む図形は、実際のテキストサイズに合わせて図形の大きさを補正する
-             * （右端の文字切れや、図形の高さに対してテキストが小さすぎる場合の余白を防ぐため）
+             * （右端の文字切れや、図形の高さに対してテキストが小さすぎる場合の余白を防ぐため）。
+             * 高さの縮小（余分な空白の除去）は、他に図形が無い単独の図形の場合のみ行う
+             * （他の図形がある場合、高さを縮めるとその図形との相対位置がずれてしまうため）
              */
+            bool allowShrinkHeight = 1 == a_shapeInfoList.Count;
             foreach( ShapeInfo shape in a_shapeInfoList )
             {
-                FitShapeToContent( shape, scaleX, scaleY );
+                FitShapeToContent( shape, scaleX, scaleY, allowShrinkHeight );
             }
 
             double unionMinXEmu = double.MaxValue;
@@ -343,13 +349,12 @@ namespace w2e.word
         {
             a_consumedCount = 1;
 
-            /* Wordの標準的な1行分の高さの目安（EMU）。間にある空段落1つあたり、この高さ分だけ
-             * 後続の図形の縦位置を押し下げる近似値として使用する
+            /* Wordの標準的な1行分の高さの目安（EMU）。段落1つあたり（空段落・図形を含む段落を問わず）、
+             * この高さ分だけ後続の図形の縦位置を押し下げる近似値として使用する
+             * （フローティング図形は文書の流れの中の段落の高さには影響しないため、図形自体の大きさは使わない）。
+             * 12pt（Wordの単一行間隔の代表的な既定値）を基準にしている。
              */
-            const double DEFAULT_LINE_HEIGHT_EMU = 190500;
-
-            /* 図形同士の間に確保する余白（EMU） */
-            const double GAP_EMU = 60000;
+            const double DEFAULT_LINE_HEIGHT_EMU = 152400;
 
             try
             {
@@ -385,15 +390,17 @@ namespace w2e.word
                         return true;
                     }
 
-                    double maxBottomEmu = 0;
                     foreach( ShapeInfo shape in shapes )
                     {
                         shape.YEmu += cumulativeYEmu;
-                        maxBottomEmu = Math.Max( maxBottomEmu, shape.YEmu + shape.CyEmu );
                         combinedShapes.Add( shape );
                     }
 
-                    cumulativeYEmu = maxBottomEmu + GAP_EMU;
+                    /* フローティング図形は段落自体の行の高さには影響しない（大きな図形が入っていても、
+                     * その段落は通常のテキストと同じ1行分の高さしか文書の流れの中では消費しない）。
+                     * そのため、次の段落の基準位置は図形の高さではなく、既定の行高さ分だけ進める。
+                     */
+                    cumulativeYEmu += DEFAULT_LINE_HEIGHT_EMU;
                     paragraphsWithShapes++;
                     return true;
                 }
@@ -408,9 +415,18 @@ namespace w2e.word
                 int scanIndex = a_startIndex + 1;
                 while( scanIndex < a_elements.Count )
                 {
-                    if( !( a_elements[scanIndex] is Word.Paragraph scanParagraph ) )
+                    DocumentFormat.OpenXml.OpenXmlElement scanElement = a_elements[scanIndex];
+
+                    if( IsTransparentStructuralElement( scanElement ) )
                     {
-                        /* 段落以外の要素（表など）が現れたらそこで走査を打ち切る */
+                        /* ブックマーク等の目に見えない構造要素は、段落の並びを分断しないよう読み飛ばす */
+                        scanIndex++;
+                        continue;
+                    }
+
+                    if( !( scanElement is Word.Paragraph scanParagraph ) )
+                    {
+                        /* 段落以外の実体のある要素（表など）が現れたらそこで走査を打ち切る */
                         break;
                     }
 
@@ -488,14 +504,18 @@ namespace w2e.word
         /// <summary>
         /// テキストを含む図形について、実際に描画されるテキストの幅・高さを測定し、
         /// 図形の実効サイズ（CxEmu/CyEmu）をそれに合わせて補正する。
-        /// 幅は「足りなければ広げる」（右端の文字切れを防ぐ）、高さは「実測値に合わせる」
+        /// 幅は「足りなければ広げる」（右端の文字切れを防ぐ）。
+        /// 高さは、他に図形が無い単独の図形（コードブロックなど）の場合のみ「実測値に合わせて詰める」
         /// （declaredされたサイズが実際のテキストより大きい場合の余分な空白を除去する）。
+        /// 他の図形と位置関係を保つ必要がある場合（複数図形の合成時）は、高さを縮めると
+        /// 他の図形との相対位置がずれてしまうため、高さは「足りなければ広げる」のみに留める。
         /// テキストを持たない図形は何もしない。
         /// </summary>
         /// <param name="a_shape">対象の図形情報（呼び出し後、CxEmu/CyEmuが更新される）</param>
         /// <param name="a_scaleX">EMU→ピクセルの水平方向の倍率</param>
         /// <param name="a_scaleY">EMU→ピクセルの垂直方向の倍率</param>
-        private static void FitShapeToContent( ShapeInfo a_shape, double a_scaleX, double a_scaleY )
+        /// <param name="a_allowShrinkHeight">高さを実測値まで縮めることを許可するかどうか</param>
+        private static void FitShapeToContent( ShapeInfo a_shape, double a_scaleX, double a_scaleY, bool a_allowShrinkHeight )
         {
             if( null == a_shape.TextLines || 0 == a_shape.TextLines.Count )
             {
@@ -535,9 +555,14 @@ namespace w2e.word
                 double neededCxEmu = maxWidthPx / a_scaleX;
                 double neededCyEmu = totalHeightPx / a_scaleY;
 
-                /* 幅は元の図形より狭くはしない（意図的な右余白を保つため）。高さは実測値に合わせて詰める */
+                /* 幅は元の図形より狭くはしない（意図的な右余白を保つため） */
                 a_shape.CxEmu = Math.Max( a_shape.CxEmu, neededCxEmu );
-                a_shape.CyEmu = neededCyEmu;
+
+                /* 高さは、縮小が許可されている場合のみ実測値に合わせて詰める。
+                 * 許可されていない場合は、幅と同様「足りなければ広げる」のみ行う
+                 * （他の図形との相対的な位置関係を保つため、縮めることはしない）
+                 */
+                a_shape.CyEmu = a_allowShrinkHeight ? neededCyEmu : Math.Max( a_shape.CyEmu, neededCyEmu );
             }
             catch
             {
@@ -719,6 +744,25 @@ namespace w2e.word
         private static bool IsShapeDrawing( Word.Drawing a_drawing )
         {
             return a_drawing.Descendants().Any( e => "wsp" == e.LocalName );
+        }
+
+
+        /// <summary>
+        /// ブックマークやコメント範囲・校正マークなど、画面上には何も表示されない「目に見えない」構造要素かどうかを判定する。
+        /// Word文書には段落と段落の間にこの種の要素が挟まっていることがあり、段落の連続性を判定する走査の妨げになるため、
+        /// 読み飛ばす対象として扱う。
+        /// </summary>
+        /// <param name="a_element">判定対象の要素</param>
+        /// <returns>目に見えない構造要素の場合はtrue</returns>
+        private static bool IsTransparentStructuralElement( DocumentFormat.OpenXml.OpenXmlElement a_element )
+        {
+            return a_element is Word.BookmarkStart ||
+                   a_element is Word.BookmarkEnd ||
+                   a_element is Word.CommentRangeStart ||
+                   a_element is Word.CommentRangeEnd ||
+                   a_element is Word.ProofError ||
+                   a_element is Word.PermStart ||
+                   a_element is Word.PermEnd;
         }
 
 

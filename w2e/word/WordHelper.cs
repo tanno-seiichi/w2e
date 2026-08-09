@@ -206,9 +206,21 @@ namespace w2e.word
         {
             for( int i = a_startIndex; i < a_elements.Count; i++ )
             {
-                if( !( a_elements[i] is Paragraph nextPara ) )
+                OpenXmlElement element = a_elements[i];
+
+                /* ブックマークやコメント範囲・校正マークなど、画面上には何も表示されない構造要素は読み飛ばす
+                 * （段落と段落の間にこの種の要素が挟まっていることがあり、探索の妨げになるため）
+                 */
+                if( element is BookmarkStart || element is BookmarkEnd ||
+                    element is CommentRangeStart || element is CommentRangeEnd ||
+                    element is ProofError || element is PermStart || element is PermEnd )
                 {
-                    /* 段落以外の要素（表など）が現れた場合はそこで探索を打ち切る */
+                    continue;
+                }
+
+                if( !( element is Paragraph nextPara ) )
+                {
+                    /* 段落以外の実体のある要素（表など）が現れた場合はそこで探索を打ち切る */
                     break;
                 }
 
