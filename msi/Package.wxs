@@ -16,6 +16,9 @@
     <Icon Id="ProductIcon" SourceFile="..\w2e\image\w2e.ico" />
     <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
 
+    <!-- cabファイルを外部ファイルとして出力せず、.msiファイルに埋め込む -->
+    <MediaTemplate EmbedCab="yes" />
+
     <Feature Id="Main">
       <ComponentGroupRef Id="w2e" />
     </Feature>
