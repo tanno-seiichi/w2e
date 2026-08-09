@@ -16,6 +16,7 @@ namespace w2e
             Assembly asm = Assembly.GetExecutingAssembly();
             this.Title = asm.GetCustomAttribute<AssemblyTitleAttribute>()?.Title ?? asm.GetName().Name;
             this.m_appTitle.Content = this.Title;
+            this.m_appDescription.Text = asm.GetCustomAttribute<AssemblyDescriptionAttribute>()?.Description ?? string.Empty;
             this.m_appVersion.Content = asm.GetName().Version?.ToString() ?? string.Empty;
             this.m_appCopyright.Content = asm.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? string.Empty;
         }

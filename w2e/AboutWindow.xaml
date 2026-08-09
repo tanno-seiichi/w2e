@@ -7,10 +7,11 @@
         mc:Ignorable="d"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
-        Title="AboutWindow" Height="245" Width="255">
+        Title="AboutWindow" Height="295" Width="300">
     <StackPanel Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Center">
         <Image x:Name="m_appIcon" Width="96" Height="96" Margin="0,0,0,8" Source="/image/w2e.png"/>
         <Label x:Name="m_appTitle" HorizontalAlignment="Center" Padding="0" FontSize="15" Content="AppTitle"/>
+        <TextBlock x:Name="m_appDescription" HorizontalAlignment="Center" Padding="0" FontSize="11" Text="AppDescription" TextWrapping="Wrap" Margin="15,2,15,5"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
             <Label FontSize="13" Padding="0" Content="Version"/>
             <Grid Width="5"/>

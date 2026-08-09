@@ -8,7 +8,7 @@ using System.Windows;
 // アセンブリに関連付けられている情報を変更するには、
 // これらの属性値を変更してください。
 [assembly: AssemblyTitle( "w2e" )]
-[assembly: AssemblyDescription( "" )]
+[assembly: AssemblyDescription( "OpenXmlを利用してWordファイルをExcel（章別シート）またはMarkdown（章別ファイル）に変換するWindowsデスクトップアプリ" )]
 [assembly: AssemblyConfiguration( "" )]
 [assembly: AssemblyCompany( "" )]
 [assembly: AssemblyProduct( "w2e" )]
