@@ -300,10 +300,15 @@ namespace w2e.converter
                                 onLogUpdate( fileName );
                             }
 
-                            /* Wordファイル「画像」の処理 */
+                            /* Wordファイル「画像」の処理
+                             * （画像を伴わない図形のみが複数の段落にまたがって離れた位置に配置されている場合、
+                             *   それらをまとめて1枚の画像として合成することがあるため、消費した段落数の分だけ
+                             *   ループのインデックスを進める）
+                             */
                             if( a_outputImage_flg )
                             {
-                                List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, para );
+                                List<WordImageData> imageList = WordImageHelper.GetImages( doc.MainDocumentPart, elements, elementIndex, out int consumedCount );
+                                elementIndex += consumedCount - 1;
 
                                 foreach( WordImageData imageData in imageList )
                                 {

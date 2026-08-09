@@ -14,6 +14,39 @@ namespace w2e.word
     public static class WordImageHelper
     {
         /// <summary>
+        /// 指定したインデックスの段落を起点に、画像を取得する。
+        /// 画像を伴わない図形のみが複数の段落にまたがって離れた位置に配置されている場合は、
+        /// それらをまとめて1枚の画像として合成し、消費した段落数を返す。
+        /// （そうでない場合は通常通りその段落単体の画像取得と同じ結果になり、消費数は1になる）
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart</param>
+        /// <param name="a_elements">Word本文の要素一覧</param>
+        /// <param name="a_currentIndex">対象段落のインデックス</param>
+        /// <param name="a_consumedCount">この呼び出しで消費した（読み飛ばすべき）要素数。呼び出し側はループのインデックスをこの数だけ進める</param>
+        /// <returns>画像情報一覧</returns>
+        public static List<WordImageData> GetImages( MainDocumentPart a_mainDocumentPart, IReadOnlyList<DocumentFormat.OpenXml.OpenXmlElement> a_elements, int a_currentIndex, out int a_consumedCount )
+        {
+            a_consumedCount = 1;
+
+            if( !( a_elements[a_currentIndex] is Word.Paragraph currentParagraph ) )
+            {
+                return new List<WordImageData>();
+            }
+
+            /* 段落をまたいで離れた位置に配置されている図形のみの段落群が無いか、まず確認する */
+            WordImageData multiParagraphResult = ShapeOverlayCompositor.TryComposeAcrossParagraphs( a_mainDocumentPart, a_elements, a_currentIndex, out int consumed );
+            if( null != multiParagraphResult )
+            {
+                a_consumedCount = consumed;
+                return new List<WordImageData>() { multiParagraphResult };
+            }
+
+            /* 対象外だった場合は、通常通りこの段落単体の画像取得処理を行う */
+            return GetImages( a_mainDocumentPart, currentParagraph );
+        }
+
+
+        /// <summary>
         /// 指定した段落内に存在する画像を取得する。
         /// </summary>
         /// <param name="a_mainDocumentPart">MainDocumentPart</param>

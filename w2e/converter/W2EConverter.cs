@@ -329,10 +329,21 @@ namespace w2e.converter
                                     row = 1;
                                 }
 
-                                /* Wordファイル「画像」の処理 */
-                                List<WordImageData> imageList = a_outputImage_flg
-                                    ? WordImageHelper.GetImages( doc.MainDocumentPart, para )
-                                    : new List<WordImageData>();
+                                /* Wordファイル「画像」の処理
+                                 * （画像を伴わない図形のみが複数の段落にまたがって離れた位置に配置されている場合、
+                                 *   それらをまとめて1枚の画像として合成することがあるため、消費した段落数の分だけ
+                                 *   ループのインデックスを進める）
+                                 */
+                                List<WordImageData> imageList;
+                                if( a_outputImage_flg )
+                                {
+                                    imageList = WordImageHelper.GetImages( doc.MainDocumentPart, elements, elementIndex, out int consumedCount );
+                                    elementIndex += consumedCount - 1;
+                                }
+                                else
+                                {
+                                    imageList = new List<WordImageData>();
+                                }
 
                                 foreach( WordImageData imageData in imageList )
                                 {

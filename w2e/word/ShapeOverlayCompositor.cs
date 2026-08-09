@@ -239,6 +239,29 @@ namespace w2e.word
                 return null;
             }
 
+            WordImageData result = ComposeFromShapeInfoList( a_mainDocumentPart, shapeInfoList );
+            if( null != result )
+            {
+                result.relationshipId = "composed-shapes:" + a_paragraph.GetHashCode();
+            }
+
+            return result;
+        }
+
+
+        /// <summary>
+        /// 解析済みの図形情報一覧から、1枚の画像に合成する（画像を伴わない、図形のみのケースで使用する共通処理）。
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart（テーマ配色の解決に使用する）</param>
+        /// <param name="a_shapeInfoList">合成対象の図形情報一覧（呼び出し側で座標調整済みのもの）</param>
+        /// <returns>合成した画像情報。図形が無い場合はnull</returns>
+        private static WordImageData ComposeFromShapeInfoList( MainDocumentPart a_mainDocumentPart, List<ShapeInfo> a_shapeInfoList )
+        {
+            if( null == a_shapeInfoList || 0 == a_shapeInfoList.Count )
+            {
+                return null;
+            }
+
             /* 図形はベクター情報のみで解像度の基準となる画像が無いため、96DPI（1ピクセル=9525EMU）を基準に描画する。
              * これはWord/Office製品が既定で使用する画面表示解像度で、実寸に近いサイズで表示される。
              */
@@ -248,20 +271,17 @@ namespace w2e.word
             /* テキストを含む図形は、実際のテキストサイズに合わせて図形の大きさを補正する
              * （右端の文字切れや、図形の高さに対してテキストが小さすぎる場合の余白を防ぐため）
              */
-            foreach( ShapeInfo shape in shapeInfoList )
+            foreach( ShapeInfo shape in a_shapeInfoList )
             {
                 FitShapeToContent( shape, scaleX, scaleY );
             }
 
-            /* 図形のみの場合、画像との位置合わせが不要なためインデント補正は行わず、
-             * 図形同士の相対位置（段基準の絶対座標）をそのまま使用する。
-             */
             double unionMinXEmu = double.MaxValue;
             double unionMinYEmu = double.MaxValue;
             double unionMaxXEmu = double.MinValue;
             double unionMaxYEmu = double.MinValue;
 
-            foreach( ShapeInfo shape in shapeInfoList )
+            foreach( ShapeInfo shape in a_shapeInfoList )
             {
                 unionMinXEmu = Math.Min( unionMinXEmu, shape.XEmu );
                 unionMinYEmu = Math.Min( unionMinYEmu, shape.YEmu );
@@ -281,7 +301,7 @@ namespace w2e.word
             DrawingVisual visual = new DrawingVisual();
             using( DrawingContext dc = visual.RenderOpen() )
             {
-                foreach( ShapeInfo shape in shapeInfoList )
+                foreach( ShapeInfo shape in a_shapeInfoList )
                 {
                     try
                     {
@@ -299,12 +319,149 @@ namespace w2e.word
             WordImageData result = new WordImageData();
             result.imageData = composedBytes;
             result.contentType = "image/png";
-            result.relationshipId = "composed-shapes:" + a_paragraph.GetHashCode();
+            result.relationshipId = "composed-shapes:" + Guid.NewGuid();
             result.widthEmu = (long)Math.Round( unionMaxXEmu - unionMinXEmu );
             result.heightEmu = (long)Math.Round( unionMaxYEmu - unionMinYEmu );
             result.altText = string.Empty;
 
             return result;
+        }
+
+
+        /// <summary>
+        /// 段落をまたいで離れた位置に配置されている「図形のみ」の段落群を検出し、1枚の画像にまとめて合成する。
+        /// Wordでは図形の位置は段落単位の相対座標（縦方向はrelativeFrom="paragraph"）で管理されているため、
+        /// 正確な段落間の距離（実際のレイアウト上の高さ）は取得できない。そのため、間にある空段落の分だけ
+        /// 既定の行高さ相当を積み上げる近似計算で縦位置を補正する（Wordの表示と完全には一致しない場合がある）。
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart</param>
+        /// <param name="a_elements">Word本文の要素一覧</param>
+        /// <param name="a_startIndex">走査を開始する段落のインデックス（図形のみの段落であること）</param>
+        /// <param name="a_consumedCount">合成のために消費した（読み飛ばした）要素数。呼び出し側はこの数だけループを進める</param>
+        /// <returns>合成した画像情報。対象外の場合はnull</returns>
+        public static WordImageData TryComposeAcrossParagraphs( MainDocumentPart a_mainDocumentPart, IReadOnlyList<DocumentFormat.OpenXml.OpenXmlElement> a_elements, int a_startIndex, out int a_consumedCount )
+        {
+            a_consumedCount = 1;
+
+            /* Wordの標準的な1行分の高さの目安（EMU）。間にある空段落1つあたり、この高さ分だけ
+             * 後続の図形の縦位置を押し下げる近似値として使用する
+             */
+            const double DEFAULT_LINE_HEIGHT_EMU = 190500;
+
+            /* 図形同士の間に確保する余白（EMU） */
+            const double GAP_EMU = 60000;
+
+            try
+            {
+                if( !( a_elements[a_startIndex] is Word.Paragraph startParagraph ) )
+                {
+                    return null;
+                }
+
+                List<ShapeInfo> combinedShapes = new List<ShapeInfo>();
+                double cumulativeYEmu = 0;
+                int paragraphsWithShapes = 0;
+
+                bool CollectParagraphShapes( Word.Paragraph a_para )
+                {
+                    List<Word.Drawing> drawings = a_para.Descendants<Word.Drawing>().ToList();
+                    bool hasPicture = drawings.Any( d => null != WordImageHelper.GetBlip( d )?.Embed );
+
+                    if( hasPicture )
+                    {
+                        /* 実際の画像（Blipを持つDrawing）があるパラグラフは対象外とする */
+                        return false;
+                    }
+
+                    List<Word.Drawing> shapeDrawings = drawings.Where( IsShapeDrawing ).ToList();
+                    if( 0 == shapeDrawings.Count )
+                    {
+                        return true;
+                    }
+
+                    List<ShapeInfo> shapes = ParseShapes( shapeDrawings );
+                    if( 0 == shapes.Count )
+                    {
+                        return true;
+                    }
+
+                    double maxBottomEmu = 0;
+                    foreach( ShapeInfo shape in shapes )
+                    {
+                        shape.YEmu += cumulativeYEmu;
+                        maxBottomEmu = Math.Max( maxBottomEmu, shape.YEmu + shape.CyEmu );
+                        combinedShapes.Add( shape );
+                    }
+
+                    cumulativeYEmu = maxBottomEmu + GAP_EMU;
+                    paragraphsWithShapes++;
+                    return true;
+                }
+
+                /* 起点となる段落自身の図形を取得する */
+                if( !CollectParagraphShapes( startParagraph ) || 0 == combinedShapes.Count )
+                {
+                    return null;
+                }
+
+                /* 後続の段落を走査し、間に空段落を挟みつつ続く図形をまとめて取り込む */
+                int scanIndex = a_startIndex + 1;
+                while( scanIndex < a_elements.Count )
+                {
+                    if( !( a_elements[scanIndex] is Word.Paragraph scanParagraph ) )
+                    {
+                        /* 段落以外の要素（表など）が現れたらそこで走査を打ち切る */
+                        break;
+                    }
+
+                    List<Word.Drawing> scanDrawings = scanParagraph.Descendants<Word.Drawing>().ToList();
+                    bool scanHasPicture = scanDrawings.Any( d => null != WordImageHelper.GetBlip( d )?.Embed );
+                    bool scanHasShape = scanDrawings.Any( IsShapeDrawing );
+
+                    if( scanHasPicture )
+                    {
+                        /* 実際の画像が現れたらそこで走査を打ち切る（通常の画像処理に委ねる） */
+                        break;
+                    }
+
+                    string scanText = WordHelper.GetVisibleText( scanParagraph )?.Trim();
+
+                    if( !scanHasShape && !string.IsNullOrEmpty( scanText ) )
+                    {
+                        /* 実際の本文テキストが現れたらそこで走査を打ち切る */
+                        break;
+                    }
+
+                    if( !scanHasShape )
+                    {
+                        /* 空段落は、既定の行高さ分だけ縦位置を押し下げる余白として扱う */
+                        cumulativeYEmu += DEFAULT_LINE_HEIGHT_EMU;
+                        scanIndex++;
+                        continue;
+                    }
+
+                    CollectParagraphShapes( scanParagraph );
+                    scanIndex++;
+                }
+
+                a_consumedCount = scanIndex - a_startIndex;
+
+                /* 図形を含む段落が1つだけだった場合は、まとめる意味が無いため対象外とする
+                 * （呼び出し側の通常の単一段落処理に任せる）
+                 */
+                if( 2 > paragraphsWithShapes )
+                {
+                    a_consumedCount = 1;
+                    return null;
+                }
+
+                return ComposeFromShapeInfoList( a_mainDocumentPart, combinedShapes );
+            }
+            catch
+            {
+                a_consumedCount = 1;
+                return null;
+            }
         }
 
 
