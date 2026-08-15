@@ -482,7 +482,20 @@ namespace w2e.converter
                 foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
                 {
                     string text = WordHelper.GetVisibleText(tc);
+
+                    /* セルの GridSpan（横結合）を取得し、colspan に合わせてセルを展開する
+                     * GridSpan が 1 の場合は通常どおり 1 列分を追加し、2 以上なら親セルの
+                     * 表示内容を追加した後、残りを空セルで埋める。
+                     */
+                    var props = tc.GetFirstChild<Word.TableCellProperties>();
+                    Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
+                    int span = ( gridSpan != null ) ? gridSpan.Val.Value : 1;
+
                     cols.Add( text.Replace( "\n", " " ) );
+                    for( int i = 1; i < span; i++ )
+                    {
+                        cols.Add( "" );
+                    }
                 }
 
                 /* -------------------------------------------------------------
