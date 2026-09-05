@@ -454,7 +454,7 @@ namespace w2e.converter
                                     onLogUpdate( sheetName );
                                 }
 
-                                ConvertTable( wbPart, table, sheetData, ref row, cache );
+                                ConvertTable( doc.MainDocumentPart, wbPart, wsPart, ref drawingsPart, ref imageId, table, sheetData, ref row, cache, a_outputImage_flg );
 
                                 /* 表の後に区切りの空行を1行確保する（この行は空行として扱う） */
                                 row++;
@@ -496,10 +496,16 @@ namespace w2e.converter
         /// <summary>
         /// Word の表を Excel の表形式データへ変換し、指定された SheetData に追記する。
         /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart（セル内画像の取得に使用）</param>
+        /// <param name="a_wbPart">出力先 WorkbookPart</param>
+        /// <param name="a_wsPart">出力先 WorksheetPart（セル内画像の貼付けに使用）</param>
+        /// <param name="a_drawingsPart">画像貼付用のDrawingsPart（未生成の場合は生成される）</param>
+        /// <param name="a_imageId">画像に付与するID（画像を貼付けるたびに更新される）</param>
         /// <param name="a_table">変換元の Word の表</param>
         /// <param name="a_sheetData">出力先 Excel シートデータ</param>
         /// <param name="a_row">Excel の出力開始行番号（出力後は次の行番号へ更新される）</param>
-        private void ConvertTable( WorkbookPart a_wbPart, Word.Table a_table, SheetData a_sheetData, ref int a_row, Dictionary<string, uint> a_cache )
+        /// <param name="a_outputImage_flg">画像を出力するか否か</param>
+        private void ConvertTable( MainDocumentPart a_mainDocumentPart, WorkbookPart a_wbPart, WorksheetPart a_wsPart, ref DrawingsPart a_drawingsPart, ref uint a_imageId, Word.Table a_table, SheetData a_sheetData, ref int a_row, Dictionary<string, uint> a_cache, bool a_outputImage_flg )
         {
             /* -----------------------------------------------------------------
              * Word 表の全行を List にして index で参照できるようにする
@@ -524,6 +530,12 @@ namespace w2e.converter
                  * Word 表の内容は 1 列右にずらして出力する
                  * ------------------------------------------------------------- */
                 values.Add( new CellData() { text = "" } );
+
+                /* -------------------------------------------------------------
+                 * この行のセル内に存在する画像を、貼付け先の列 index と対応付けて記録するリスト
+                 * （行のテキストを出力した後、実際の貼付け処理を行う）
+                 * ------------------------------------------------------------- */
+                List<KeyValuePair<int, List<WordImageData>>> cellImages = new List<KeyValuePair<int, List<WordImageData>>>();
 
                 /* -------------------------------------------------------------
                  * この行のセル一覧を取得（列 index 用）
@@ -604,12 +616,32 @@ namespace w2e.converter
                     bool bottomBorder_flg = ( null == vertical ) ? true : ( isContinue_flg ? !hasNextVerticalMerge_flg : false );
 
                     /* ---------------------------------------------------------
+                     * セル内の画像を取得する（縦結合の継続セルはWord上テキストを持たないため対象外とする）
+                     * この時点の values.Count が、このセルが配置される列 index（0始まり）と一致する
+                     * --------------------------------------------------------- */
+                    if( a_outputImage_flg &&
+                        !isContinue_flg )
+                    {
+                        List<WordImageData> images = GetCellImages( a_mainDocumentPart, tc );
+
+                        if( 0 < images.Count )
+                        {
+                            cellImages.Add( new KeyValuePair<int, List<WordImageData>>( values.Count, images ) );
+                        }
+                    }
+
+                    /* ---------------------------------------------------------
+                     * セルのテキストを取得する
+                     * --------------------------------------------------------- */
+                    string cellText = isContinue_flg ? "" : WordHelper.GetCellText( tc );
+
+                    /* ---------------------------------------------------------
                      * セルデータを追加（先頭セル）
                      * --------------------------------------------------------- */
                     values.Add(
                         new CellData()
                         {
-                            text = isContinue_flg ? "" : WordHelper.GetCellText( tc ),
+                            text = cellText,
                             topBorder = ( null == vertical ) ? true : isRestart_flg,
                             bottomBorder = bottomBorder_flg,
                             leftBorder = true,
@@ -638,11 +670,92 @@ namespace w2e.converter
                 }
 
                 /* -------------------------------------------------------------
-                 * 1 行分のセルデータを Excel に出力する
+                 * 1 行分のセルデータを Excel に出力する。
+                 *
+                 * セル内に画像が無い行は、高さを指定せずExcelの自動調整に任せる
+                 * （Excelは実際のフォントで折返しを計算するため、こちらの方が正確）
+                 *
+                 * セル内に画像がある行は、浮動画像はExcelの自動調整の対象外のため、
+                 * 高さを明示的に指定する必要がある。その際、セル内のテキストを実フォントで
+                 * 計測して見積もった高さ（オート調整相当）と、画像が必要とする高さを比較し、
+                 * 大きい方を採用する（画像がある行だけの処理なので、コストの高い文字幅計測は
+                 * この場合に限定して行う）
+                 *
                  * 出力後、次の行番号へ進める
                  * ------------------------------------------------------------- */
-                ExcelHelper.SetRow( a_wbPart, a_sheetData, a_row++, values, a_cache );
+                double? rowHeightPoints = null;
+
+                if( 0 < cellImages.Count )
+                {
+                    double maxImageHeightPoints = 0;
+
+                    foreach( KeyValuePair<int, List<WordImageData>> pair in cellImages )
+                    {
+                        foreach( WordImageData imageData in pair.Value )
+                        {
+                            double heightPoints = ExcelHelper.CalculateRowHeightForImage( imageData );
+
+                            if( maxImageHeightPoints < heightPoints )
+                            {
+                                maxImageHeightPoints = heightPoints;
+                            }
+                        }
+                    }
+
+                    double maxTextHeightPoints = 0;
+
+                    foreach( CellData cellData in values )
+                    {
+                        if( string.IsNullOrEmpty( cellData.text ) )
+                        {
+                            continue;
+                        }
+
+                        double heightPoints = ExcelHelper.EstimateRowHeightForText( cellData.text, 1 );
+
+                        if( maxTextHeightPoints < heightPoints )
+                        {
+                            maxTextHeightPoints = heightPoints;
+                        }
+                    }
+
+                    rowHeightPoints = Math.Max( maxTextHeightPoints, maxImageHeightPoints );
+                }
+
+                int currentRowNumber = a_row;
+                ExcelHelper.SetRow( a_wbPart, a_sheetData, a_row++, values, a_cache, rowHeightPoints );
+
+                /* -------------------------------------------------------------
+                 * この行のセルに存在した画像を、対応する列位置に貼付ける
+                 * （行の高さは上ですでに画像に合わせて拡張済みのため、追加の行確保は不要）
+                 * ------------------------------------------------------------- */
+                foreach( KeyValuePair<int, List<WordImageData>> pair in cellImages )
+                {
+                    foreach( WordImageData imageData in pair.Value )
+                    {
+                        ExcelHelper.AddImage( a_wsPart, ref a_drawingsPart, ref a_imageId, imageData, currentRowNumber - 1, pair.Key );
+                    }
+                }
             }
+        }
+
+
+        /// <summary>
+        /// 表のセル内に存在する画像を取得する（セル内の各段落を対象とする）。
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart</param>
+        /// <param name="a_cell">対象セル</param>
+        /// <returns>画像情報一覧</returns>
+        private List<WordImageData> GetCellImages( MainDocumentPart a_mainDocumentPart, Word.TableCell a_cell )
+        {
+            List<WordImageData> result = new List<WordImageData>();
+
+            foreach( Word.Paragraph para in a_cell.Elements<Word.Paragraph>() )
+            {
+                result.AddRange( WordImageHelper.GetImages( a_mainDocumentPart, para ) );
+            }
+
+            return result;
         }
 
 

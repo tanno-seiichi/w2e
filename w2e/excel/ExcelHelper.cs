@@ -158,6 +158,125 @@ namespace w2e.excel
         /// </summary>
         private const long DEFAULT_ROW_HEIGHT_EMU = 190500;
 
+        /// <summary>
+        /// EMUとポイントの変換係数（OOXML標準：1ポイント = 12700EMU）
+        /// </summary>
+        private const double EMU_PER_POINT = 12700.0;
+
+        /// <summary>
+        /// 画像を貼付ける行の高さを計算する際、画像の下に余白として追加するポイント数
+        /// </summary>
+        private const double IMAGE_ROW_HEIGHT_MARGIN_POINTS = 4.0;
+
+        /// <summary>
+        /// セルの罫線と画像が重ならないよう、画像をセルの左上から右下にずらすオフセット（EMU）
+        /// 行の高さに追加する余白（IMAGE_ROW_HEIGHT_MARGIN_POINTS）のうち、上側の分に相当する
+        /// </summary>
+        private const long IMAGE_CELL_OFFSET_EMU = 25400;
+
+
+        /// <summary>
+        /// 画像の高さから、その画像を貼付ける行に設定すべき行の高さ（pt）を算出する。
+        /// セルの罫線内に画像がきれいに収まるよう、行の高さを画像の高さに合わせて拡張する用途に使用する。
+        /// </summary>
+        /// <param name="a_image">対象の画像情報（サイズ不明の場合は既定サイズとして扱う）</param>
+        /// <returns>行の高さ（pt）</returns>
+        public static double CalculateRowHeightForImage( WordImageData a_image )
+        {
+            long heightEmu = ( null != a_image && 0 < a_image.heightEmu ) ? a_image.heightEmu : DEFAULT_IMAGE_HEIGHT_EMU;
+
+            return ( heightEmu / EMU_PER_POINT ) + IMAGE_ROW_HEIGHT_MARGIN_POINTS;
+        }
+
+
+        /// <summary>
+        /// 行の高さの見積りに使用する既定の列幅（px, 96DPI換算）
+        /// 本アプリでは列幅を明示的に指定していないため、Excelの既定列幅（8.43文字相当）を用いる
+        /// </summary>
+        private const double DEFAULT_COLUMN_WIDTH_PIXELS = 64.0;
+
+        /// <summary>
+        /// セル内側の余白（左右合計、px, 96DPI換算）。折返し判定の際に列幅から差し引く
+        /// </summary>
+        private const double CELL_PADDING_PIXELS = 10.0;
+
+        /// <summary>
+        /// 行数見積りに使用するフォント名（実際にセルへ設定しているフォントに関わらず、
+        /// 折返し行数の目安を得るための計測用フォントとして使用する）
+        /// </summary>
+        private const string ESTIMATE_FONT_NAME = "MS Pゴシック";
+
+        /// <summary>
+        /// 行数見積りに使用するフォントサイズ（pt）
+        /// </summary>
+        private const float ESTIMATE_FONT_SIZE = 11.0f;
+
+
+        /// <summary>
+        /// セルのテキストが実際に何行に折返されるかを、実フォントでの文字幅計測により見積もる。
+        /// 明示的な改行（段落区切り等）に加え、列幅に収まらない場合の自動折返しも考慮する。
+        /// </summary>
+        /// <param name="a_text">対象セルのテキスト（Environment.NewLine 区切りを想定）</param>
+        /// <param name="a_columnSpan">セルが占める列数（横結合されている場合は2以上）</param>
+        /// <returns>折返し後の行数（1以上）</returns>
+        public static int EstimateWrappedLineCount( string a_text, int a_columnSpan )
+        {
+            if( string.IsNullOrEmpty( a_text ) )
+            {
+                return 1;
+            }
+
+            double columnWidthPixels = ( DEFAULT_COLUMN_WIDTH_PIXELS * Math.Max( 1, a_columnSpan ) ) - CELL_PADDING_PIXELS;
+            if( columnWidthPixels < 1.0 )
+            {
+                columnWidthPixels = 1.0;
+            }
+
+            string[] explicitLines = a_text.Split( new[] { "\r\n", "\n" }, StringSplitOptions.None );
+
+            int totalLines = 0;
+
+            using( System.Drawing.Font font = new System.Drawing.Font( ESTIMATE_FONT_NAME, ESTIMATE_FONT_SIZE ) )
+            using( System.Drawing.Bitmap dummyBitmap = new System.Drawing.Bitmap( 1, 1 ) )
+            using( System.Drawing.Graphics g = System.Drawing.Graphics.FromImage( dummyBitmap ) )
+            {
+                foreach( string line in explicitLines )
+                {
+                    if( string.IsNullOrEmpty( line ) )
+                    {
+                        /* 空行も1行として数える */
+                        totalLines += 1;
+                        continue;
+                    }
+
+                    /* 折返し無しの状態でその行全体の幅を計測し、列幅で割って折返し行数を求める */
+                    System.Drawing.SizeF size = g.MeasureString( line, font, int.MaxValue );
+                    int wrappedCount = (int)Math.Ceiling( size.Width / columnWidthPixels );
+
+                    totalLines += Math.Max( 1, wrappedCount );
+                }
+            }
+
+            return Math.Max( 1, totalLines );
+        }
+
+
+        /// <summary>
+        /// セル内のテキストから、Excelの自動調整相当の行の高さ（pt）を見積もる。
+        /// 実フォントでの文字幅計測により、列幅に収まらない場合の自動折返しも考慮した行数を求め、
+        /// 1行あたり Excel の既定の行の高さ（DEFAULT_ROW_HEIGHT_EMU）分の高さが必要と仮定して計算する。
+        /// </summary>
+        /// <param name="a_text">対象セルのテキスト（Environment.NewLine 区切りを想定）</param>
+        /// <param name="a_columnSpan">セルが占める列数（横結合されている場合は2以上）</param>
+        /// <returns>行の高さ（pt）</returns>
+        public static double EstimateRowHeightForText( string a_text, int a_columnSpan = 1 )
+        {
+            double singleLineHeightPoints = DEFAULT_ROW_HEIGHT_EMU / EMU_PER_POINT;
+            int lineCount = EstimateWrappedLineCount( a_text, a_columnSpan );
+
+            return lineCount * singleLineHeightPoints;
+        }
+
 
         /// <summary>
         /// Excelワークシートに画像を挿入する
@@ -210,14 +329,16 @@ namespace w2e.excel
             string picName = "Picture " + id;
             string altText = a_image.altText ?? "";
 
-            /* 画像の配置情報（アンカー）を生成する */
+            /* 画像の配置情報（アンカー）を生成する
+             * セルの罫線（上・左）と画像が重ならないよう、少しだけ右下にオフセットして配置する
+             */
             Xdr.OneCellAnchor anchor = new Xdr.OneCellAnchor(
                 new Xdr.FromMarker()
                 {
                     ColumnId = new Xdr.ColumnId( a_colIndex.ToString() ),
-                    ColumnOffset = new Xdr.ColumnOffset( "0" ),
+                    ColumnOffset = new Xdr.ColumnOffset( IMAGE_CELL_OFFSET_EMU.ToString() ),
                     RowId = new Xdr.RowId( a_rowIndex.ToString() ),
-                    RowOffset = new Xdr.RowOffset( "0" )
+                    RowOffset = new Xdr.RowOffset( IMAGE_CELL_OFFSET_EMU.ToString() )
                 },
                 new Xdr.Extent() { Cx = widthEmu, Cy = heightEmu },
                 new Xdr.Picture(
@@ -308,10 +429,21 @@ namespace w2e.excel
         /// <param name="a_rowIndex">行番号</param>
         /// <param name="a_values">行に設定するセルデータの一覧</param>
         /// <param name="a_cache">Excelのスタイルシートに登録済のスタイルを再利用するためのキャッシュ</param>
-        public static void SetRow( WorkbookPart a_wbPart, SheetData a_sheetData, int a_rowIndex, List<CellData> a_values, Dictionary<string, uint> a_cache )
+        /// <param name="a_rowHeightPoints">
+        /// 行の高さ（pt）を明示的に指定する場合に指定する（画像を貼付ける行など）。
+        /// 指定しない場合はExcelの既定の高さ・自動調整に委ねる。
+        /// </param>
+        public static void SetRow( WorkbookPart a_wbPart, SheetData a_sheetData, int a_rowIndex, List<CellData> a_values, Dictionary<string, uint> a_cache, double? a_rowHeightPoints = null )
         {
             Row row = new Row();
             row.RowIndex = (uint)a_rowIndex;
+
+            if( a_rowHeightPoints.HasValue )
+            {
+                row.Height = a_rowHeightPoints.Value;
+                row.CustomHeight = true;
+            }
+
             a_sheetData.Append( row );
 
             for( int i = 0; i < a_values.Count; i++ )
