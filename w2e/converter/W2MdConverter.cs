@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using w2e.delegates;
 using w2e.file;
@@ -421,7 +422,7 @@ namespace w2e.converter
                         Word.Table table = element as Word.Table;
                         if( null != table )
                         {
-                            ConvertTable( table, md );
+                            ConvertTable( doc.MainDocumentPart, table, md, a_outputDir, currentNum, a_outputImage_flg );
 
                             md.AddLine( "" );
                             continue;
@@ -463,9 +464,13 @@ namespace w2e.converter
         /// <summary>
         /// Word の表を MarkDown の表形式データへ変換し、指定された ファイル に追記する。
         /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart（セル内画像の取得に使用）</param>
         /// <param name="a_table">変換元の Word の表</param>
         /// <param name="a_md">出力先 MarkDown ファイル</param>
-        private void ConvertTable( Word.Table a_table, MarkDownWriter a_md )
+        /// <param name="a_outputDir">画像ファイルの出力先ディレクトリ（MarkDownファイルの出力先）</param>
+        /// <param name="a_headingNumber">画像ファイル名生成に使用する章番号</param>
+        /// <param name="a_outputImage_flg">画像を出力するか否か</param>
+        private void ConvertTable( MainDocumentPart a_mainDocumentPart, Word.Table a_table, MarkDownWriter a_md, string a_outputDir, string a_headingNumber, bool a_outputImage_flg )
         {
             bool headerDone = false;
 
@@ -481,7 +486,21 @@ namespace w2e.converter
                  * ------------------------------------------------------------- */
                 foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
                 {
-                    string text = WordHelper.GetVisibleText(tc);
+                    string text = WordHelper.GetVisibleText(tc).Replace( "\n", " " );
+
+                    /* セル内に画像が存在する場合は、画像ファイルを出力してimgタグをテキストに追加する
+                     * （表のセルはMarkDown上1行で表現する必要があるため、改行を含む標準の画像記法ではなく
+                     *   本文の画像出力と同じimgタグをテキストの末尾に連結する）
+                     */
+                    if( a_outputImage_flg )
+                    {
+                        string imageTags = ConvertCellImages( a_mainDocumentPart, tc, a_outputDir, a_headingNumber );
+
+                        if( !string.IsNullOrEmpty( imageTags ) )
+                        {
+                            text = string.IsNullOrEmpty( text ) ? imageTags : ( text + " " + imageTags );
+                        }
+                    }
 
                     /* セルの GridSpan（横結合）を取得し、colspan に合わせてセルを展開する
                      * GridSpan が 1 の場合は通常どおり 1 列分を追加し、2 以上なら親セルの
@@ -491,7 +510,7 @@ namespace w2e.converter
                     Word.GridSpan gridSpan = props?.GetFirstChild<Word.GridSpan>();
                     int span = ( gridSpan != null ) ? gridSpan.Val.Value : 1;
 
-                    cols.Add( text.Replace( "\n", " " ) );
+                    cols.Add( text );
                     for( int i = 1; i < span; i++ )
                     {
                         cols.Add( "" );
@@ -509,6 +528,49 @@ namespace w2e.converter
                     headerDone = true;
                 }
             }
+        }
+
+
+        /// <summary>
+        /// 表のセル内に存在する画像をファイルに保存し、参照用のimgタグ文字列を生成する。
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart</param>
+        /// <param name="a_cell">対象セル</param>
+        /// <param name="a_outputDir">画像ファイルの出力先ディレクトリ（MarkDownファイルの出力先）</param>
+        /// <param name="a_headingNumber">画像ファイル名生成に使用する章番号</param>
+        /// <returns>セル内の画像すべてに対するimgタグを連結した文字列（画像が無い場合は空文字列）</returns>
+        private string ConvertCellImages( MainDocumentPart a_mainDocumentPart, Word.TableCell a_cell, string a_outputDir, string a_headingNumber )
+        {
+            StringBuilder sb = new StringBuilder();
+
+            /* セル内の段落ごとに画像を取得する */
+            foreach( Word.Paragraph para in a_cell.Elements<Word.Paragraph>() )
+            {
+                List<WordImageData> imageList = WordImageHelper.GetImages( a_mainDocumentPart, para );
+
+                foreach( WordImageData imageData in imageList )
+                {
+                    string imageFileName = m_imageFileNameGenerator.CreateFileName( a_headingNumber, imageData.contentType );
+                    string imageDirectory = Path.Combine( a_outputDir, "images" );
+
+                    if( !Directory.Exists( imageDirectory ) )
+                    {
+                        Directory.CreateDirectory( imageDirectory );
+                    }
+
+                    string imagePath = Path.Combine( imageDirectory, imageFileName );
+                    File.WriteAllBytes( imagePath, imageData.imageData );
+
+                    if( 0 < sb.Length )
+                    {
+                        sb.Append( " " );
+                    }
+
+                    sb.Append( "<img src=\"images/" + imageFileName + "\" alt=\"" + imageFileName + "\" style=\"display:block;margin:0;\" />" );
+                }
+            }
+
+            return sb.ToString();
         }
 
 
