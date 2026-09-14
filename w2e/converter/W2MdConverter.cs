@@ -486,7 +486,7 @@ namespace w2e.converter
                  * ------------------------------------------------------------- */
                 foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
                 {
-                    string text = WordHelper.GetVisibleText(tc).Replace( "\n", " " );
+                    string text = ConvertCellText( tc );
 
                     /* セル内に画像が存在する場合は、画像ファイルを出力してimgタグをテキストに追加する
                      * （表のセルはMarkDown上1行で表現する必要があるため、改行を含む標準の画像記法ではなく
@@ -528,6 +528,30 @@ namespace w2e.converter
                     headerDone = true;
                 }
             }
+        }
+
+
+        /// <summary>
+        /// 表のセル内の文字列を取得する。
+        /// 段落区切りおよびセル内の改行（Shift+Enter）は、MarkDownの表内では改行として
+        /// 扱われないため、&lt;br/&gt; タグに変換して再現する。
+        /// </summary>
+        /// <param name="a_cell">対象セル</param>
+        /// <returns>&lt;br/&gt; 変換済みのセル文字列</returns>
+        private string ConvertCellText( Word.TableCell a_cell )
+        {
+            List<string> paragraphTexts = new List<string>();
+
+            /* セル内の段落ごとにテキストを取得する（フィールドの解決等はGetVisibleText側で行う） */
+            foreach( Word.Paragraph para in a_cell.Elements<Word.Paragraph>() )
+            {
+                paragraphTexts.Add( WordHelper.GetVisibleText( para ) );
+            }
+
+            /* 段落同士は改行区切りで連結し、段落内のShift+Enter改行と合わせてまとめて<br/>に変換する */
+            string combined = string.Join( Environment.NewLine, paragraphTexts );
+
+            return combined.Replace( "\r\n", "<br/>" ).Replace( "\n", "<br/>" );
         }
 
 
