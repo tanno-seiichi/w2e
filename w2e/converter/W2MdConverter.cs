@@ -486,21 +486,10 @@ namespace w2e.converter
                  * ------------------------------------------------------------- */
                 foreach( Word.TableCell tc in tr.Elements<Word.TableCell>() )
                 {
-                    string text = ConvertCellText( tc );
-
-                    /* セル内に画像が存在する場合は、画像ファイルを出力してimgタグをテキストに追加する
-                     * （表のセルはMarkDown上1行で表現する必要があるため、改行を含む標準の画像記法ではなく
-                     *   本文の画像出力と同じimgタグをテキストの末尾に連結する）
+                    /* セルの内容（テキスト・画像）を、Word上の段落順を保ったまま変換する
+                     * （画像が本文より先にある場合に、画像が末尾へ回ってしまわないようにするため）
                      */
-                    if( a_outputImage_flg )
-                    {
-                        string imageTags = ConvertCellImages( a_mainDocumentPart, tc, a_outputDir, a_headingNumber );
-
-                        if( !string.IsNullOrEmpty( imageTags ) )
-                        {
-                            text = string.IsNullOrEmpty( text ) ? imageTags : ( text + " " + imageTags );
-                        }
-                    }
+                    string text = ConvertCellContent( a_mainDocumentPart, tc, a_outputDir, a_headingNumber, a_outputImage_flg );
 
                     /* セルの GridSpan（横結合）を取得し、colspan に合わせてセルを展開する
                      * GridSpan が 1 の場合は通常どおり 1 列分を追加し、2 以上なら親セルの
@@ -532,66 +521,92 @@ namespace w2e.converter
 
 
         /// <summary>
-        /// 表のセル内の文字列を取得する。
+        /// 表のセルの内容（テキスト・画像）を、Word上の段落順を保ったまま文字列として取得する。
+        /// 段落ごとに「その段落内の画像のimgタグ」→「その段落のテキスト」の順で連結するため、
+        /// 画像が本文より先にある段落ではimgタグが先に、後にある場合はテキストが先に出力される。
         /// 段落区切りおよびセル内の改行（Shift+Enter）は、MarkDownの表内では改行として
         /// 扱われないため、&lt;br/&gt; タグに変換して再現する。
         /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart（セル内画像の取得に使用）</param>
         /// <param name="a_cell">対象セル</param>
+        /// <param name="a_outputDir">画像ファイルの出力先ディレクトリ（MarkDownファイルの出力先）</param>
+        /// <param name="a_headingNumber">画像ファイル名生成に使用する章番号</param>
+        /// <param name="a_outputImage_flg">画像を出力するか否か</param>
         /// <returns>&lt;br/&gt; 変換済みのセル文字列</returns>
-        private string ConvertCellText( Word.TableCell a_cell )
+        private string ConvertCellContent( MainDocumentPart a_mainDocumentPart, Word.TableCell a_cell, string a_outputDir, string a_headingNumber, bool a_outputImage_flg )
         {
-            List<string> paragraphTexts = new List<string>();
+            List<string> paragraphSegments = new List<string>();
 
-            /* セル内の段落ごとにテキストを取得する（フィールドの解決等はGetVisibleText側で行う） */
+            /* セル内の段落を順番に処理し、各段落の「画像→テキスト」の順で連結する */
             foreach( Word.Paragraph para in a_cell.Elements<Word.Paragraph>() )
             {
-                paragraphTexts.Add( WordHelper.GetVisibleText( para ) );
+                StringBuilder segment = new StringBuilder();
+
+                if( a_outputImage_flg )
+                {
+                    string imageTags = ConvertParagraphImages( a_mainDocumentPart, para, a_outputDir, a_headingNumber );
+
+                    if( !string.IsNullOrEmpty( imageTags ) )
+                    {
+                        segment.Append( imageTags );
+                    }
+                }
+
+                string paraText = WordHelper.GetVisibleText( para );
+
+                if( !string.IsNullOrEmpty( paraText ) )
+                {
+                    if( 0 < segment.Length )
+                    {
+                        segment.Append( " " );
+                    }
+
+                    segment.Append( paraText );
+                }
+
+                paragraphSegments.Add( segment.ToString() );
             }
 
             /* 段落同士は改行区切りで連結し、段落内のShift+Enter改行と合わせてまとめて<br/>に変換する */
-            string combined = string.Join( Environment.NewLine, paragraphTexts );
+            string combined = string.Join( Environment.NewLine, paragraphSegments );
 
             return combined.Replace( "\r\n", "<br/>" ).Replace( "\n", "<br/>" );
         }
 
 
         /// <summary>
-        /// 表のセル内に存在する画像をファイルに保存し、参照用のimgタグ文字列を生成する。
+        /// 段落内に存在する画像をファイルに保存し、参照用のimgタグ文字列を生成する。
         /// </summary>
         /// <param name="a_mainDocumentPart">MainDocumentPart</param>
-        /// <param name="a_cell">対象セル</param>
+        /// <param name="a_paragraph">対象段落</param>
         /// <param name="a_outputDir">画像ファイルの出力先ディレクトリ（MarkDownファイルの出力先）</param>
         /// <param name="a_headingNumber">画像ファイル名生成に使用する章番号</param>
-        /// <returns>セル内の画像すべてに対するimgタグを連結した文字列（画像が無い場合は空文字列）</returns>
-        private string ConvertCellImages( MainDocumentPart a_mainDocumentPart, Word.TableCell a_cell, string a_outputDir, string a_headingNumber )
+        /// <returns>段落内の画像すべてに対するimgタグを連結した文字列（画像が無い場合は空文字列）</returns>
+        private string ConvertParagraphImages( MainDocumentPart a_mainDocumentPart, Word.Paragraph a_paragraph, string a_outputDir, string a_headingNumber )
         {
             StringBuilder sb = new StringBuilder();
 
-            /* セル内の段落ごとに画像を取得する */
-            foreach( Word.Paragraph para in a_cell.Elements<Word.Paragraph>() )
+            List<WordImageData> imageList = WordImageHelper.GetImages( a_mainDocumentPart, a_paragraph );
+
+            foreach( WordImageData imageData in imageList )
             {
-                List<WordImageData> imageList = WordImageHelper.GetImages( a_mainDocumentPart, para );
+                string imageFileName = m_imageFileNameGenerator.CreateFileName( a_headingNumber, imageData.contentType );
+                string imageDirectory = Path.Combine( a_outputDir, "images" );
 
-                foreach( WordImageData imageData in imageList )
+                if( !Directory.Exists( imageDirectory ) )
                 {
-                    string imageFileName = m_imageFileNameGenerator.CreateFileName( a_headingNumber, imageData.contentType );
-                    string imageDirectory = Path.Combine( a_outputDir, "images" );
-
-                    if( !Directory.Exists( imageDirectory ) )
-                    {
-                        Directory.CreateDirectory( imageDirectory );
-                    }
-
-                    string imagePath = Path.Combine( imageDirectory, imageFileName );
-                    File.WriteAllBytes( imagePath, imageData.imageData );
-
-                    if( 0 < sb.Length )
-                    {
-                        sb.Append( " " );
-                    }
-
-                    sb.Append( "<img src=\"images/" + imageFileName + "\" alt=\"" + imageFileName + "\" style=\"display:block;margin:0;\" />" );
+                    Directory.CreateDirectory( imageDirectory );
                 }
+
+                string imagePath = Path.Combine( imageDirectory, imageFileName );
+                File.WriteAllBytes( imagePath, imageData.imageData );
+
+                if( 0 < sb.Length )
+                {
+                    sb.Append( " " );
+                }
+
+                sb.Append( "<img src=\"images/" + imageFileName + "\" alt=\"" + imageFileName + "\" style=\"display:block;margin:0;\" />" );
             }
 
             return sb.ToString();
