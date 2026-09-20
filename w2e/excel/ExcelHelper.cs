@@ -1,4 +1,5 @@
-﻿using DocumentFormat.OpenXml.Packaging;
+﻿using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using System;
 using System.Collections.Generic;
@@ -464,7 +465,18 @@ namespace w2e.excel
                 {
                     /* セルがブランクでない場合 */
                     cell.DataType = CellValues.String;
-                    cell.CellValue = new CellValue( data.text ?? "" );
+                    CellValue cellValue = new CellValue( data.text ?? "" );
+
+                    /* 先頭・末尾に空白（コードのインデント等）がある場合、Excel側で
+                     * 表示時に空白が失われないよう、明示的に xml:space="preserve" を付与する
+                     */
+                    if( !string.IsNullOrEmpty( data.text ) &&
+                        ( char.IsWhiteSpace( data.text[0] ) || char.IsWhiteSpace( data.text[data.text.Length - 1] ) ) )
+                    {
+                        cellValue.Space = SpaceProcessingModeValues.Preserve;
+                    }
+
+                    cell.CellValue = cellValue;
                 }
 
                 /* セルに枠線を設定 */

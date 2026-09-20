@@ -125,6 +125,12 @@ namespace w2e.converter
                          */
                         var recentShapeTexts = new HashSet<string>();
 
+                        /* 直前に処理した段落が段落罫線（w:pBdr）を持っていたかどうか。
+                         * 同じ罫線設定の段落が連続する「コードブロック」のような枠を、
+                         * 個々の段落ごとに罫線を引かず、ひとまとまりの矩形として出力するために使用する
+                         */
+                        bool previousParaHadBorder_flg = false;
+
                         int total = body.Elements().Count();
                         int current = 0;
 
@@ -301,6 +307,9 @@ namespace w2e.converter
                                     /* シートを新規作成したので空行判定の状態を初期化する */
                                     consecutiveBlankRows = 0;
 
+                                    /* シートを新規作成したので段落罫線の連続判定の状態も初期化する */
+                                    previousParaHadBorder_flg = false;
+
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
                                 }
@@ -321,6 +330,9 @@ namespace w2e.converter
 
                                     /* シートを新規作成したので空行判定の状態を初期化する */
                                     consecutiveBlankRows = 0;
+
+                                    /* シートを新規作成したので段落罫線の連続判定の状態も初期化する */
+                                    previousParaHadBorder_flg = false;
 
                                     /* ログにシート名を表示 */
                                     onLogUpdate( sheetName );
@@ -391,6 +403,19 @@ namespace w2e.converter
                                 /* 章の見出しとして扱われた行は、太字で表示する */
                                 bool isHeadingRow_flg = isNewChapter_flg;
 
+                                /* 段落罫線（w:pBdr）を持つ段落が連続している場合、それらをひとまとまりの矩形として
+                                 * 出力するため、この段落が「枠の先頭」「枠の末尾」にあたるかどうかを判定する
+                                 * （同じ罫線設定の段落が連続すると、Word上では罫線同士が結合して1つの枠に見えるため）
+                                 */
+                                bool hasBorder_flg = WordHelper.HasParagraphBorder( para );
+
+                                bool isBorderBlockStart_flg = hasBorder_flg && !previousParaHadBorder_flg;
+
+                                Word.Paragraph nextPara = ( elementIndex + 1 < elements.Count ) ? elements[elementIndex + 1] as Word.Paragraph : null;
+                                bool isBorderBlockEnd_flg = hasBorder_flg && !WordHelper.HasParagraphBorder( nextPara );
+
+                                previousParaHadBorder_flg = hasBorder_flg;
+
                                 for( int i = 0; i < textLines.Length; i++ )
                                 {
                                     /* 2行目以降は番号列を空白にする */
@@ -424,6 +449,36 @@ namespace w2e.converter
                                     lineNumData.bold = isHeadingRow_flg;
                                     lineTextData.bold = isHeadingRow_flg;
                                     lineContentData.bold = isHeadingRow_flg;
+
+                                    /* 段落罫線がある場合、内容が実際に記述されている列（B列、箇条書きの場合はB〜C列）
+                                     * のみを囲む矩形として罫線を設定する（A列（章番号用の列）には罫線を引かない）。
+                                     * 上端の線は「枠の先頭段落」の最初の行にのみ、下端の線は「枠の末尾段落」の
+                                     *   最後の行にのみ引くことで、複数行・複数段落にまたがる1つの枠として表現する）
+                                     */
+                                    if( hasBorder_flg )
+                                    {
+                                        bool topBorderThisRow = isBorderBlockStart_flg && ( 0 == i );
+                                        bool bottomBorderThisRow = isBorderBlockEnd_flg && ( textLines.Length - 1 == i );
+
+                                        lineTextData.topBorder = topBorderThisRow;
+                                        lineTextData.bottomBorder = bottomBorderThisRow;
+                                        lineTextData.leftBorder = true;
+
+                                        if( hasListMarker_flg )
+                                        {
+                                            /* 箇条書きの記号と内容が別列（B列・C列）に分かれている場合は、
+                                             * その2列をまとめて囲む（右端の線はC列に引く）
+                                             */
+                                            lineContentData.topBorder = topBorderThisRow;
+                                            lineContentData.bottomBorder = bottomBorderThisRow;
+                                            lineContentData.rightBorder = true;
+                                        }
+                                        else
+                                        {
+                                            /* 通常の行は内容がB列のみのため、C列には罫線を一切引かない */
+                                            lineTextData.rightBorder = true;
+                                        }
+                                    }
 
                                     ExcelHelper.SetRow( wbPart, sheetData, row++, new List<CellData>() { lineNumData, lineTextData, lineContentData }, cache );
                                 }
@@ -459,6 +514,10 @@ namespace w2e.converter
                                 /* 表の後に区切りの空行を1行確保する（この行は空行として扱う） */
                                 row++;
                                 consecutiveBlankRows = 1;
+
+                                /* 表を挟んだので、段落罫線の連続判定もリセットする */
+                                previousParaHadBorder_flg = false;
+
                                 continue;
                             }
                         }

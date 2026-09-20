@@ -236,6 +236,43 @@ namespace w2e.word
 
 
         /// <summary>
+        /// 段落罫線（w:pBdr）が設定されている段落かどうかを判定する。
+        /// コードブロックなどで、複数の段落に同じ段落罫線を設定して1つの枠のように
+        /// 見せている場合の検出に使用する（表のセル罫線とは異なる仕組み）。
+        /// </summary>
+        /// <param name="a_para">対象の段落</param>
+        /// <returns>上下左右いずれかの罫線が設定されている場合はtrue</returns>
+        public static bool HasParagraphBorder( Paragraph a_para )
+        {
+            ParagraphBorders borders = a_para?.ParagraphProperties?.ParagraphBorders;
+
+            if( null == borders )
+            {
+                return false;
+            }
+
+            return IsVisibleBorder( borders.TopBorder ) ||
+                   IsVisibleBorder( borders.BottomBorder ) ||
+                   IsVisibleBorder( borders.LeftBorder ) ||
+                   IsVisibleBorder( borders.RightBorder );
+        }
+
+
+        /// <summary>
+        /// 段落罫線の1辺（上下左右いずれか）が実際に表示される線かどうかを判定する
+        /// </summary>
+        /// <param name="a_border">判定対象の罫線（未設定の場合はnull）</param>
+        /// <returns>表示される線が設定されている場合はtrue</returns>
+        private static bool IsVisibleBorder( BorderType a_border )
+        {
+            return null != a_border &&
+                   null != a_border.Val &&
+                   BorderValues.Nil != a_border.Val.Value &&
+                   BorderValues.None != a_border.Val.Value;
+        }
+
+
+        /// <summary>
         /// Word文書に定義されている番号付け情報（Numbering）を読み込んでNumberingIdをキーとした辞書として取得する
         /// </summary>
         /// <param name="a_doc">Wordドキュメント</param>

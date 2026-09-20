@@ -105,6 +105,12 @@ namespace w2e.converter
                      */
                     var recentShapeTexts = new HashSet<string>();
 
+                    /* 直前に処理した段落が段落罫線（w:pBdr）を持っていたかどうか。
+                     * 同じ罫線設定の段落が連続する「コードブロック」のような枠を、
+                     * MarkDownのコードフェンス（```）としてまとめて出力するために使用する
+                     */
+                    bool previousParaHadBorder_flg = false;
+
                     /* 現在のファイル情報を初期化 */
                     string fileName = TOP_FILE_NAME;
                     string filePath = Path.Combine( a_outputDir, fileName );
@@ -297,6 +303,9 @@ namespace w2e.converter
                                 filePath = Path.Combine( a_outputDir, fileName );
                                 md.NewFile( filePath );
 
+                                /* ファイルを新規作成したので段落罫線の連続判定の状態も初期化する */
+                                previousParaHadBorder_flg = false;
+
                                 /* ログにファイル名を表示 */
                                 onLogUpdate( fileName );
                             }
@@ -351,6 +360,44 @@ namespace w2e.converter
 
                             /* 行出力（段落内改行(Shift+Enter)がある場合は複数行に分けて出力する） */
                             string[] textLines = text.Split( new[] { "\r\n", "\n" }, StringSplitOptions.None );
+
+                            /* 段落罫線（w:pBdr）を持つ段落が連続している場合、それらをひとまとまりの
+                             * コードブロックとして出力するため、この段落が「ブロックの先頭」「ブロックの末尾」に
+                             * あたるかどうかを判定する（同じ罫線設定の段落が連続すると、Word上では罫線同士が
+                             * 結合して1つの枠に見えるため）
+                             */
+                            bool hasBorder_flg = WordHelper.HasParagraphBorder( para );
+
+                            bool isBorderBlockStart_flg = hasBorder_flg && !previousParaHadBorder_flg;
+
+                            Word.Paragraph nextParaForBorder = ( elementIndex + 1 < elements.Count ) ? elements[elementIndex + 1] as Word.Paragraph : null;
+                            bool isBorderBlockEnd_flg = hasBorder_flg && !WordHelper.HasParagraphBorder( nextParaForBorder );
+
+                            previousParaHadBorder_flg = hasBorder_flg;
+
+                            if( hasBorder_flg )
+                            {
+                                /* 段落罫線（コードブロックの枠）の場合は、MarkDownのコードフェンス（```）として
+                                 * 出力する。見出し・箇条書きとしての書式付けは行わず、テキストをそのまま出力する
+                                 */
+                                if( isBorderBlockStart_flg )
+                                {
+                                    md.AddLine( "```" );
+                                }
+
+                                foreach( string line in textLines )
+                                {
+                                    md.AddLine( line );
+                                }
+
+                                if( isBorderBlockEnd_flg )
+                                {
+                                    md.AddLine( "```" );
+                                    md.AddLine( "" );
+                                }
+
+                                continue;
+                            }
 
                             if( isList_flg )
                             {
@@ -423,6 +470,9 @@ namespace w2e.converter
                         if( null != table )
                         {
                             ConvertTable( doc.MainDocumentPart, table, md, a_outputDir, currentNum, a_outputImage_flg );
+
+                            /* 表を挟んだので、段落罫線の連続判定もリセットする */
+                            previousParaHadBorder_flg = false;
 
                             md.AddLine( "" );
                             continue;
