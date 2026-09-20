@@ -191,6 +191,23 @@ namespace w2e.excel
 
 
         /// <summary>
+        /// 画像の高さを避けて文字列を配置するために必要な空行の行数を算出する。
+        /// 表のセル内で、画像の直後（同じ段落内）に文字列が続く場合、そのままではExcel上で
+        /// 画像とテキストが同じ位置に重なって表示されてしまうため、画像の高さ分だけ
+        /// テキストの前に空行を挿入して縦方向にずらす用途に使用する。
+        /// </summary>
+        /// <param name="a_image">対象の画像情報（サイズ不明の場合は既定サイズとして扱う）</param>
+        /// <returns>画像の高さを避けるために必要な空行の行数（1以上）</returns>
+        public static int CalculateBlankLineCountForImage( WordImageData a_image )
+        {
+            double imageHeightPoints = CalculateRowHeightForImage( a_image );
+            double singleLineHeightPoints = DEFAULT_ROW_HEIGHT_EMU / EMU_PER_POINT;
+
+            return Math.Max( 1, (int)Math.Ceiling( imageHeightPoints / singleLineHeightPoints ) );
+        }
+
+
+        /// <summary>
         /// 行の高さの見積りに使用する既定の列幅（px, 96DPI換算）
         /// 本アプリでは列幅を明示的に指定していないため、Excelの既定列幅（8.43文字相当）を用いる
         /// </summary>

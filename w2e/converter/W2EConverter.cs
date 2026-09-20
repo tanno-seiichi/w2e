@@ -4,6 +4,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using w2e.delegates;
 using w2e.excel;
@@ -691,8 +692,10 @@ namespace w2e.converter
 
                     /* ---------------------------------------------------------
                      * セルのテキストを取得する
+                     * （画像の直後（同じ段落内）に文字列が続く場合、Excel上で画像とテキストが
+                     *   重なって表示されてしまうため、画像の高さ分だけ文字列の前に空行を挿入する）
                      * --------------------------------------------------------- */
-                    string cellText = isContinue_flg ? "" : WordHelper.GetCellText( tc );
+                    string cellText = isContinue_flg ? "" : GetCellTextWithImageSpacing( a_mainDocumentPart, tc, a_outputImage_flg );
 
                     /* ---------------------------------------------------------
                      * セルデータを追加（先頭セル）
@@ -815,6 +818,92 @@ namespace w2e.converter
             }
 
             return result;
+        }
+
+
+        /// <summary>
+        /// 表のセル内の文字列を取得する（WordHelper.GetCellTextと同様に段落・改行を扱う）。
+        /// 画像の直後（同じ段落内）に文字列が続く場合、そのままではExcel上で画像とテキストが
+        /// 同じ位置に重なって表示されてしまうため、その段落の画像の高さ分だけ、
+        /// 文字列の前に空行を挿入して縦方向にずらす。
+        /// </summary>
+        /// <param name="a_mainDocumentPart">MainDocumentPart（段落内画像の取得に使用）</param>
+        /// <param name="a_cell">対象セル</param>
+        /// <param name="a_outputImage_flg">画像を出力するか否か（falseの場合は空行の挿入も行わない）</param>
+        /// <returns>セルの文字列</returns>
+        private string GetCellTextWithImageSpacing( MainDocumentPart a_mainDocumentPart, Word.TableCell a_cell, bool a_outputImage_flg )
+        {
+            StringBuilder sb = new StringBuilder();
+            bool firstParagraph = true;
+
+            foreach( Word.Paragraph para in a_cell.Elements<Word.Paragraph>() )
+            {
+                if( !firstParagraph )
+                {
+                    sb.Append( Environment.NewLine );
+                }
+                firstParagraph = false;
+
+                string paraText = GetParagraphPlainText( para );
+
+                /* 段落内に画像があり、かつ画像に続く文字列がある場合のみ、空行の挿入で回避する
+                 * （画像だけの段落や、文字列だけの段落では重なりが発生しないため対象外とする）
+                 */
+                if( a_outputImage_flg && !string.IsNullOrEmpty( paraText ) )
+                {
+                    List<WordImageData> paraImages = WordImageHelper.GetImages( a_mainDocumentPart, para );
+
+                    if( 0 < paraImages.Count )
+                    {
+                        int maxBlankLines = 0;
+
+                        foreach( WordImageData imageData in paraImages )
+                        {
+                            int blankLines = ExcelHelper.CalculateBlankLineCountForImage( imageData );
+
+                            if( maxBlankLines < blankLines )
+                            {
+                                maxBlankLines = blankLines;
+                            }
+                        }
+
+                        for( int i = 0; i < maxBlankLines; i++ )
+                        {
+                            sb.Append( Environment.NewLine );
+                        }
+                    }
+                }
+
+                sb.Append( paraText );
+            }
+
+            return sb.ToString();
+        }
+
+
+        /// <summary>
+        /// 1つの段落内のテキストを取得する（WordHelper.GetCellTextの段落内処理と同じロジック）。
+        /// 改行（Shift+Enter）は改行コードに変換する。
+        /// </summary>
+        /// <param name="a_para">対象の段落</param>
+        /// <returns>段落内の文字列</returns>
+        private static string GetParagraphPlainText( Word.Paragraph a_para )
+        {
+            StringBuilder sb = new StringBuilder();
+
+            foreach( OpenXmlElement elem in a_para.Descendants() )
+            {
+                if( elem is Word.Break )
+                {
+                    sb.Append( Environment.NewLine );
+                }
+                else if( elem is Word.Text text )
+                {
+                    sb.Append( text.Text );
+                }
+            }
+
+            return sb.ToString();
         }
 
 
