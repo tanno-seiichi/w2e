@@ -56,6 +56,7 @@ namespace w2e
             this.m_excel.IsChecked = !this.m_markDown.IsChecked.Value;
             this.m_outputImage_flg.IsChecked = ( "true" == Properties.Settings.Default.outputImage.ToLower() );
             this.m_outputListNumber_flg.IsChecked = ( "true" == Properties.Settings.Default.outputListNumber.ToLower() );
+            this.m_ignoreTab_flg.IsChecked = ( "true" == Properties.Settings.Default.ignoreTab.ToLower() );
             this.EnableBtnConvert();
         }
 
@@ -78,6 +79,7 @@ namespace w2e
             Properties.Settings.Default.output = ( this.m_excel.IsChecked.Value ) ? this.m_excel.Content.ToString() : this.m_markDown.Content.ToString();
             Properties.Settings.Default.outputImage = this.m_outputImage_flg.IsChecked.Value.ToString();
             Properties.Settings.Default.outputListNumber = this.m_outputListNumber_flg.IsChecked.Value.ToString();
+            Properties.Settings.Default.ignoreTab = this.m_ignoreTab_flg.IsChecked.Value.ToString();
             Properties.Settings.Default.Save();
         }
 
@@ -157,6 +159,17 @@ namespace w2e
 
 
         /// <summary>
+        /// タブ文字を無視する有無の切替時の処理
+        /// </summary>
+        /// <param name="a_sender">イベント発生元オブジェクト</param>
+        /// <param name="a_args">イベントデータ</param>
+        private void CheckBoxIgnoreTabClicked( object a_sender, RoutedEventArgs a_args )
+        {
+            this.UpdateProgressBar( 0 );
+        }
+
+
+        /// <summary>
         /// 「変換実行」ボタン押下時の処理
         /// </summary>
         /// <remarks>
@@ -180,6 +193,7 @@ namespace w2e
                     Path.GetDirectoryName( wordPath), Path.GetFileName( wordPath ) + "_" + DateTime.Now.ToString( "yyyyMMdd_HHmmss" ) );
             bool outputImage_flg = this.m_outputImage_flg.IsChecked.Value;
             bool outputListNumber_flg = this.m_outputListNumber_flg.IsChecked.Value;
+            bool ignoreTab_flg = this.m_ignoreTab_flg.IsChecked.Value;
 
             /* ログ表示エリアを初期化 */
             this.m_log.Clear();
@@ -202,7 +216,7 @@ namespace w2e
                         m_converter.onLogUpdate = this.UpdateLog;
 
                         /* 変換開始 */
-                        m_converter.Convert( wordPath, excelPath, outputImage_flg, outputListNumber_flg, this.m_cts.Token );
+                        m_converter.Convert( wordPath, excelPath, outputImage_flg, outputListNumber_flg, ignoreTab_flg, this.m_cts.Token );
                     }
                     else
                     {
@@ -215,7 +229,7 @@ namespace w2e
 
                         /* 変換開始 */
                         Directory.CreateDirectory( mdDir );
-                        m_converter.Convert( wordPath, mdDir, outputImage_flg, outputListNumber_flg, this.m_cts.Token );
+                        m_converter.Convert( wordPath, mdDir, outputImage_flg, outputListNumber_flg, ignoreTab_flg, this.m_cts.Token );
                     }
 
                     if( m_cts.Token.IsCancellationRequested )

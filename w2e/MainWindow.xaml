@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:w2e"
         mc:Ignorable="d"
-        Title="" Height="164" Width="560" MinHeight="187" WindowStartupLocation="CenterScreen"
+        Title="" Height="164" Width="640" MinHeight="187" WindowStartupLocation="CenterScreen"
         Icon="image/w2e.ico"
         ResizeMode="CanResizeWithGrip"
         Loaded="WindowLoaded"
@@ -61,6 +61,8 @@
                 <CheckBox x:Name="m_outputImage_flg" Content="画像を表示する" Click="CheckBoxImageClicked"/>
                 <Grid Width="15"/>
                 <CheckBox x:Name="m_outputListNumber_flg" Content="箇条書き番号" Click="CheckBoxListNumberClicked"/>
+                <Grid Width="15"/>
+                <CheckBox x:Name="m_ignoreTab_flg" Content="タブを無視する" Click="CheckBoxIgnoreTabClicked"/>
             </StackPanel>
 
         </Grid>

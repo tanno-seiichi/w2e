@@ -14,5 +14,8 @@
     <Setting Name="outputListNumber" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="ignoreTab" Type="System.String" Scope="User">
+      <Value Profile="(Default)">true</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

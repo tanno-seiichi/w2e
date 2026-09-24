@@ -22,6 +22,13 @@ namespace w2e.word
         /// </summary>
         public const string TAB_REPLACEMENT = "    ";
 
+        /// <summary>
+        /// タブ文字（w:tab）を無視する（何も出力しない）か否か。
+        /// falseの場合は固定幅のスペース（TAB_REPLACEMENT）に変換して出力する。
+        /// 画面のチェックボックスから、変換処理開始時に設定される。
+        /// </summary>
+        public static bool IgnoreTab_flg = true;
+
 
         /// <summary>
         /// Word文書に定義されている番号付け情報（Numbering）の種別
@@ -490,7 +497,7 @@ namespace w2e.word
                 TabChar tab = element as TabChar;
                 if( null != tab )
                 {
-                    sb.Append( TAB_REPLACEMENT );
+                    sb.Append( IgnoreTab_flg ? "" : TAB_REPLACEMENT );
                     continue;
                 }
 
@@ -560,7 +567,7 @@ namespace w2e.word
                     else if( elem is TabChar )
                     {
                         /* タブ文字の場合 */
-                        sb.Append( TAB_REPLACEMENT );
+                        sb.Append( IgnoreTab_flg ? "" : TAB_REPLACEMENT );
                     }
                     else
                     {

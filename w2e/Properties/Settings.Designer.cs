@@ -70,5 +70,17 @@ namespace w2e.Properties {
                 this["outputListNumber"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("true")]
+        public string ignoreTab {
+            get {
+                return ((string)(this["ignoreTab"]));
+            }
+            set {
+                this["ignoreTab"] = value;
+            }
+        }
     }
 }

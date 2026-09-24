@@ -63,9 +63,13 @@ namespace w2e.converter
         /// <param name="a_excelPath">Excelファイルのパス</param>
         /// <param name="a_outputImage_flg">画像を使用するか否か</param>
         /// <param name="a_outputListNumber_flg">箇条書きに番号（Wordの実際の記号）を使用するか否か。falseの場合は固定で「・」を使用する</param>
+        /// <param name="a_ignoreTab_flg">タブ文字を無視する（何も出力しない）か否か。falseの場合は固定幅のスペースに変換して出力する</param>
         /// <param name="a_token">処理中断通知</param>
-        public void Convert( string a_wordPath, string a_excelPath, bool a_outputImage_flg, bool a_outputListNumber_flg, CancellationToken a_token )
+        public void Convert( string a_wordPath, string a_excelPath, bool a_outputImage_flg, bool a_outputListNumber_flg, bool a_ignoreTab_flg, CancellationToken a_token )
         {
+            /* タブ文字の変換有無を設定する */
+            WordHelper.IgnoreTab_flg = a_ignoreTab_flg;
+
             onProgressUpdate?.Invoke( PROGRESS_MIN_VALUE );
             string tempPath = FileCopy.CreateTempCopy( a_wordPath );
 
@@ -899,7 +903,7 @@ namespace w2e.converter
                 }
                 else if( elem is Word.TabChar )
                 {
-                    sb.Append( WordHelper.TAB_REPLACEMENT );
+                    sb.Append( WordHelper.IgnoreTab_flg ? "" : WordHelper.TAB_REPLACEMENT );
                 }
                 else if( elem is Word.Text text )
                 {
