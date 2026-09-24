@@ -16,6 +16,14 @@ namespace w2e.word
     public static class WordHelper
     {
         /// <summary>
+        /// Wordのタブ文字（w:tab）を出力する際に置き換える固定幅のスペース。
+        /// Excelはタブストップの概念を持たず、タブ文字をそのまま出力しても見た目の
+        /// インデントとして機能しないため、固定幅のスペースに変換して出力する。
+        /// </summary>
+        public const string TAB_REPLACEMENT = "    ";
+
+
+        /// <summary>
         /// Word文書に定義されている番号付け情報（Numbering）の種別
         /// </summary>
         public enum NumberingTypeEn
@@ -478,6 +486,14 @@ namespace w2e.word
                     continue;
                 }
 
+                /* タブ文字（w:tab） */
+                TabChar tab = element as TabChar;
+                if( null != tab )
+                {
+                    sb.Append( TAB_REPLACEMENT );
+                    continue;
+                }
+
                 /* 表示テキスト */
                 Text text = element as Text;
                 if( null != text )
@@ -540,6 +556,11 @@ namespace w2e.word
                     {
                         /* 改行の場合 */
                         sb.Append( Environment.NewLine );
+                    }
+                    else if( elem is TabChar )
+                    {
+                        /* タブ文字の場合 */
+                        sb.Append( TAB_REPLACEMENT );
                     }
                     else
                     {

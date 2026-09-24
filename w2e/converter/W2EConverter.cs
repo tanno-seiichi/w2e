@@ -897,6 +897,10 @@ namespace w2e.converter
                 {
                     sb.Append( Environment.NewLine );
                 }
+                else if( elem is Word.TabChar )
+                {
+                    sb.Append( WordHelper.TAB_REPLACEMENT );
+                }
                 else if( elem is Word.Text text )
                 {
                     sb.Append( text.Text );
