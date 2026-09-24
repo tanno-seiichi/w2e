@@ -366,12 +366,12 @@ namespace w2e.converter
                              * あたるかどうかを判定する（同じ罫線設定の段落が連続すると、Word上では罫線同士が
                              * 結合して1つの枠に見えるため）
                              */
-                            bool hasBorder_flg = WordHelper.HasParagraphBorder( para );
+                            bool hasBorder_flg = WordHelper.HasParagraphBorder( para, doc.MainDocumentPart );
 
                             bool isBorderBlockStart_flg = hasBorder_flg && !previousParaHadBorder_flg;
 
                             Word.Paragraph nextParaForBorder = ( elementIndex + 1 < elements.Count ) ? elements[elementIndex + 1] as Word.Paragraph : null;
-                            bool isBorderBlockEnd_flg = hasBorder_flg && !WordHelper.HasParagraphBorder( nextParaForBorder );
+                            bool isBorderBlockEnd_flg = hasBorder_flg && !WordHelper.HasParagraphBorder( nextParaForBorder, doc.MainDocumentPart );
 
                             previousParaHadBorder_flg = hasBorder_flg;
 

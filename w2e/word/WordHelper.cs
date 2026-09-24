@@ -239,22 +239,75 @@ namespace w2e.word
         /// 段落罫線（w:pBdr）が設定されている段落かどうかを判定する。
         /// コードブロックなどで、複数の段落に同じ段落罫線を設定して1つの枠のように
         /// 見せている場合の検出に使用する（表のセル罫線とは異なる仕組み）。
+        ///
+        /// 段落自体に直接設定された罫線だけでなく、その段落が使用している「段落スタイル」
+        /// （およびそのスタイルが basedOn で継承している親スタイル）に罫線が定義されている
+        /// 場合も対象とする。Wordではスタイル経由で設定された罫線もそのまま画面に表示されるため。
         /// </summary>
         /// <param name="a_para">対象の段落</param>
+        /// <param name="a_mainDocumentPart">MainDocumentPart（スタイル定義の参照に使用）</param>
         /// <returns>上下左右いずれかの罫線が設定されている場合はtrue</returns>
-        public static bool HasParagraphBorder( Paragraph a_para )
+        public static bool HasParagraphBorder( Paragraph a_para, MainDocumentPart a_mainDocumentPart )
         {
-            ParagraphBorders borders = a_para?.ParagraphProperties?.ParagraphBorders;
-
-            if( null == borders )
+            if( null == a_para )
             {
                 return false;
             }
 
-            return IsVisibleBorder( borders.TopBorder ) ||
-                   IsVisibleBorder( borders.BottomBorder ) ||
-                   IsVisibleBorder( borders.LeftBorder ) ||
-                   IsVisibleBorder( borders.RightBorder );
+            /* 段落自体に直接設定された罫線を確認する */
+            if( HasVisibleBorder( a_para.ParagraphProperties?.ParagraphBorders ) )
+            {
+                return true;
+            }
+
+            /* 段落が使用しているスタイル（および basedOn で継承している親スタイル）を
+             * 順にたどり、いずれかに罫線が定義されていないか確認する
+             */
+            Styles styles = a_mainDocumentPart?.StyleDefinitionsPart?.Styles;
+            string styleId = a_para.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+
+            HashSet<string> visitedStyleIds = new HashSet<string>();
+
+            while( null != styles &&
+                   !string.IsNullOrEmpty( styleId ) &&
+                   visitedStyleIds.Add( styleId ) )
+            {
+                Style style = styles.Elements<Style>().FirstOrDefault( s => styleId == s.StyleId );
+
+                if( null == style )
+                {
+                    break;
+                }
+
+                if( HasVisibleBorder( style.StyleParagraphProperties?.ParagraphBorders ) )
+                {
+                    return true;
+                }
+
+                /* 継承元（basedOn）のスタイルへたどる */
+                styleId = style.BasedOn?.Val?.Value;
+            }
+
+            return false;
+        }
+
+
+        /// <summary>
+        /// 段落罫線（w:pBdr）のいずれかの辺に、実際に表示される線が設定されているか判定する
+        /// </summary>
+        /// <param name="a_borders">判定対象の段落罫線（未設定の場合はnull）</param>
+        /// <returns>上下左右いずれかに表示される線が設定されている場合はtrue</returns>
+        private static bool HasVisibleBorder( ParagraphBorders a_borders )
+        {
+            if( null == a_borders )
+            {
+                return false;
+            }
+
+            return IsVisibleBorder( a_borders.TopBorder ) ||
+                   IsVisibleBorder( a_borders.BottomBorder ) ||
+                   IsVisibleBorder( a_borders.LeftBorder ) ||
+                   IsVisibleBorder( a_borders.RightBorder );
         }
 
 

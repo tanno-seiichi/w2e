@@ -408,12 +408,12 @@ namespace w2e.converter
                                  * 出力するため、この段落が「枠の先頭」「枠の末尾」にあたるかどうかを判定する
                                  * （同じ罫線設定の段落が連続すると、Word上では罫線同士が結合して1つの枠に見えるため）
                                  */
-                                bool hasBorder_flg = WordHelper.HasParagraphBorder( para );
+                                bool hasBorder_flg = WordHelper.HasParagraphBorder( para, doc.MainDocumentPart );
 
                                 bool isBorderBlockStart_flg = hasBorder_flg && !previousParaHadBorder_flg;
 
                                 Word.Paragraph nextPara = ( elementIndex + 1 < elements.Count ) ? elements[elementIndex + 1] as Word.Paragraph : null;
-                                bool isBorderBlockEnd_flg = hasBorder_flg && !WordHelper.HasParagraphBorder( nextPara );
+                                bool isBorderBlockEnd_flg = hasBorder_flg && !WordHelper.HasParagraphBorder( nextPara, doc.MainDocumentPart );
 
                                 previousParaHadBorder_flg = hasBorder_flg;
 
